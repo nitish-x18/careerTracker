@@ -1,0 +1,1 @@
+console.log("Here databse configuration is done");
