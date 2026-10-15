@@ -1,11 +1,7 @@
-import React from 'react'
+import AppRoutes from "./routes/AppRoutes";
 
-const App = () => {
-  return (
-    <div>
-      <h2 className='font-bold flex justify-center items-center text-5xl'>Welcome to careerTrack</h2>
-    </div>
-  )
+function App() {
+  return <AppRoutes />;
 }
 
-export default App
+export default App;
