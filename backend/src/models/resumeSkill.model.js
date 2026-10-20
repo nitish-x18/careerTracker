@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import {db} from "../config/db.js";
 
 const ResumeSkill = {
     async add({ resume_id, skill_id, verified = 0 }) {

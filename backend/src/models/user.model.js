@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import {db} from "../config/db.js";
 
 const User = {
     async create({ id, name, email, password_hash, auth_provider = "email" }) {

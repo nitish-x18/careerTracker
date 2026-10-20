@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import {db} from "../config/db.js";
 
 const SavedSearch = {
     async create({ id, user_id, filters }) {
