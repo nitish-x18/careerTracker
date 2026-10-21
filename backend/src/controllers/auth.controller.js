@@ -4,22 +4,10 @@ import { randomUUID } from "node:crypto";
 
 import User from "../models/user.model.js";
 import { apiError } from "../utils/apiError.js";
+import { generateAccessToken } from "../utils/jwt.utils.js";
 import { apiResponse } from "../utils/apiResponse.js";
 
-const generateAccessToken = (user) => {
-    if (!process.env.JWT_SECRET) {
-        throw new Error("JWT_SECRET is not configured.");
-    }
 
-    return jwt.sign(
-        {
-            userId: user.id,
-            email: user.email
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: "1d" }
-    );
-};
 
 export const registerUser = async (req, res, next) => {
     try {
