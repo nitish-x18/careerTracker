@@ -17,7 +17,7 @@ const app = express();
 // 1. Global middleware
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: process.env.CORS_ORIGIN || "*",
     })
 );
 
