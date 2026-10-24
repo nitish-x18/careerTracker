@@ -18,7 +18,11 @@ function Sidebar() {
     { name: "Dashboard", path: "/dashboard", icon: LayoutGrid },
     { name: "My Applications", path: "/applications", icon: PanelsTopLeft },
     { name: "Priority Queue", path: "/priority-queue", icon: Hourglass },
-    { name: "Job & Internship Search", path: "/job-search", icon: Search },
+    {
+      name: "Job & Internship Search",
+      path: "/job-search",
+      icon: Search,
+    },
     { name: "Resume Match", path: "/resume-match", icon: FileSearch },
     { name: "Eligibility Checker", path: "/eligibility", icon: BadgeCheck },
     { name: "Application Timeline", path: "/timeline", icon: Clock },
@@ -55,10 +59,7 @@ function Sidebar() {
       {/* CareerTrack Branding */}
       <div className="mb-8 flex items-center gap-2.5">
         <CareerTrackLogo size={28} />
-
-        <h1 className="text-xl font-bold tracking-tight">
-          CareerTrack
-        </h1>
+        <h1 className="text-xl font-bold tracking-tight">CareerTrack</h1>
       </div>
 
       {/* Workspace */}
