@@ -5,7 +5,6 @@ import Dashboard from "../pages/Dashboard";
 import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
-import JobAndIntern from "../pages/JobAndIntern";
 
 function AppRoutes() {
   return (
@@ -58,15 +57,6 @@ function AppRoutes() {
           element={
             <MainLayout>
               <h1 className="text-3xl font-bold">Eligibility</h1>
-            </MainLayout>
-          }
-        />
-
-        <Route
-          path="/job-intern"
-          element={
-            <MainLayout>
-              <JobAndIntern />
             </MainLayout>
           }
         />
