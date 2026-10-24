@@ -1,12 +1,9 @@
 
-import {
-  Search,
-  Bell,
-  Plus,
-  ChevronDown,
-} from "lucide-react";
 import { useState } from "react";
+import { Search, Bell, Plus, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { removeAuthToken } from "../../services/auth";
+import CareerTrackLogo from "../common/CareerTrackLogo";
 
 function Topbar() {
   const [search, setSearch] = useState("");
@@ -22,13 +19,16 @@ function Topbar() {
     }
   }
 
+  function handleLogout() {
+    removeAuthToken();
+    navigate("/login");
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-[58px] w-full items-center justify-between gap-4 border-b border-slate-100 bg-white px-4 sm:px-6 lg:px-7">
       {/* Current section */}
       <div className="flex min-w-0 shrink-0 items-center gap-2">
-        <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px] bg-violet-700 text-white">
-          <span className="text-[11px] font-bold">↗</span>
-        </span>
+        <CareerTrackLogo size={28} />
 
         <h2 className="truncate text-[11px] font-bold text-slate-800">
           Application Pipeline
@@ -60,7 +60,7 @@ function Topbar() {
       </form>
 
       {/* Header actions */}
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           aria-label="Notifications"
@@ -88,6 +88,19 @@ function Topbar() {
           className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-cyan-50 text-[11px] font-bold text-violet-800 transition hover:ring-2 hover:ring-violet-100"
         >
           <span>AK</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="Logout"
+          title="Logout"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-red-50 hover:text-red-600 sm:w-auto sm:gap-2 sm:px-2"
+        >
+          <LogOut size={16} />
+          <span className="hidden text-[11px] font-medium sm:inline">
+            Logout
+          </span>
         </button>
       </div>
     </header>

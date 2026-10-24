@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import Dashboard from "../pages/Dashboard";
@@ -6,16 +7,22 @@ import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
 
+import PriorityQueue from "../pages/PriorityQueue";
+import ResumeMatch from "../pages/ResumeMatch";
+import EligibilityChecker from "../pages/EligibilityChecker";
+import Profile from "../pages/Profile";
+
 function AppRoutes() {
   return (
     <Routes>
       {/* Public Pages */}
       <Route path="/" element={<Landing />} />
-      <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       {/* Protected Pages */}
       <Route element={<ProtectedRoute />}>
+        {/* Dashboard */}
         <Route
   path="/dashboard"
   element={
@@ -25,6 +32,7 @@ function AppRoutes() {
   }
 />
 
+        {/* My Applications */}
         <Route
           path="/applications"
           element={
@@ -34,33 +42,39 @@ function AppRoutes() {
           }
         />
 
+        {/* Priority Queue */}
         <Route
           path="/priority-queue"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Priority Queue</h1>
+              <PriorityQueue />
             </MainLayout>
           }
         />
 
+        {/* Resume Match */}
         <Route
           path="/resume-match"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Resume Match</h1>
+              <ResumeMatch />
             </MainLayout>
           }
         />
 
+        {/* Eligibility Checker */}
         <Route
           path="/eligibility"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Eligibility</h1>
+              <EligibilityChecker />
             </MainLayout>
           }
         />
 
+        {/* Job & Internship Search */}
+        {/* Support the existing sidebar route too */}
+        {/* Application Timeline */}
         <Route
           path="/timeline"
           element={
@@ -70,11 +84,22 @@ function AppRoutes() {
           }
         />
 
+        {/* Settings */}
+        <Route
+          path="/settings"
+          element={
+            <MainLayout>
+              <h1 className="text-3xl font-bold">Settings</h1>
+            </MainLayout>
+          }
+        />
+
+        {/* User Profile */}
         <Route
           path="/profile"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Profile</h1>
+              <Profile />
             </MainLayout>
           }
         />
