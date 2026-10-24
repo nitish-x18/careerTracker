@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
-
+import Dashboard from "../pages/Dashboard";
 function AppRoutes() {
   return (
     <Routes>
@@ -13,13 +13,13 @@ function AppRoutes() {
       {/* Protected Pages */}
       <Route element={<ProtectedRoute />}>
         <Route
-          path="/dashboard"
-          element={
-            <MainLayout>
-              <h1 className="text-3xl font-bold">Dashboard</h1>
-            </MainLayout>
-          }
-        />
+  path="/dashboard"
+  element={
+    <MainLayout>
+      <Dashboard />
+    </MainLayout>
+  }
+/>
 
         <Route
           path="/applications"
