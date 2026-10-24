@@ -3,10 +3,12 @@ import Topbar from "./Topbar";
 
 function MainLayout({ children }) {
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen bg-gray-100">
+      {/* Fixed Left Sidebar */}
       <Sidebar />
 
-      <div className="flex-1">
+      {/* Main Content Area */}
+      <div className="ml-64 min-h-screen">
         <Topbar />
 
         <main className="p-6">
