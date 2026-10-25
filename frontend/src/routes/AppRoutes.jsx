@@ -2,11 +2,10 @@ import { Routes, Route } from "react-router-dom";
 
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
-
+import Dashboard from "../pages/Dashboard";
 import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
-
 
 import PriorityQueue from "../pages/PriorityQueue";
 import ResumeMatch from "../pages/ResumeMatch";
@@ -25,13 +24,13 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         {/* Dashboard */}
         <Route
-          path="/dashboard"
-          element={
-            <MainLayout>
-              <h1 className="text-3xl font-bold">Dashboard</h1>
-            </MainLayout>
-          }
-        />
+  path="/dashboard"
+  element={
+    <MainLayout>
+      <Dashboard />
+    </MainLayout>
+  }
+/>
 
         {/* My Applications */}
         <Route
