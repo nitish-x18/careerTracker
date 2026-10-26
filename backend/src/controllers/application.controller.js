@@ -1,8 +1,17 @@
+
 import { randomUUID } from "node:crypto";
 
 import Application from "../models/application.model.js";
 import Job from "../models/job.model.js";
 import Resume from "../models/resume.model.js";
+import JobSkill from "../models/jobSkill.model.js";
+import ResumeSkill from "../models/resumeSkill.model.js";
+import UserProfile from "../models/userProfile.model.js";
+
+import { compareSkills } from "../logic/skillMatching.js";
+import { calculatePriorityScore } from "../logic/priorityScoring.js";
+import { PriorityQueue } from "../logic/priorityQueue.js";
+import { checkEligibility } from "../logic/eligibilityCheck.js";
 
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
@@ -17,6 +26,39 @@ const allowedStatuses = [
 ];
 
 const allowedPriorities = ["low", "medium", "high"];
+const activeStatuses = ["saved", "applied", "interview"];
+
+function getDaysRemaining(deadline) {
+    if (!deadline) return null;
+
+    const deadlineDate = new Date(deadline);
+
+    if (Number.isNaN(deadlineDate.getTime())) {
+        return null;
+    }
+
+    const today = new Date();
+
+    const todayUTC = Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate()
+    );
+
+    const deadlineUTC = Date.UTC(
+        deadlineDate.getUTCFullYear(),
+        deadlineDate.getUTCMonth(),
+        deadlineDate.getUTCDate()
+    );
+
+    return Math.round(
+        (deadlineUTC - todayUTC) / (24 * 60 * 60 * 1000)
+    );
+}
+
+function getEffectiveDeadline(application, jobDeadline = null) {
+    return application.deadline ?? jobDeadline ?? null;
+}
 
 export const createApplication = async (req, res, next) => {
     try {
@@ -27,8 +69,6 @@ export const createApplication = async (req, res, next) => {
             resume_id = null,
             status = "saved",
             priority_level = "medium",
-            match_score = null,
-            priority_score = null,
             applied_date = null,
             deadline = null,
             notes = null
@@ -42,8 +82,11 @@ export const createApplication = async (req, res, next) => {
             throw new apiError(400, "Invalid priority level.");
         }
 
+        let job = null;
+        let resume = null;
+
         if (job_id) {
-            const job = await Job.findById(job_id);
+            job = await Job.findById(job_id);
 
             if (!job) {
                 throw new apiError(404, "Job not found.");
@@ -51,13 +94,57 @@ export const createApplication = async (req, res, next) => {
         }
 
         if (resume_id) {
-            const resume = await Resume.findById(resume_id);
+            resume = await Resume.findById(resume_id);
 
-            if (!resume || resume.user_id !== userId) {
+            if (
+                !resume ||
+                String(resume.user_id) !== String(userId)
+            ) {
                 throw new apiError(
                     404,
                     "Resume not found for this user."
                 );
+            }
+        }
+
+        let matchScore = null;
+        let priorityScore = null;
+        let skillResult = null;
+        let eligibility = null;
+
+        if (job && resume) {
+            const jobSkills = await JobSkill.getByJobId(job.id);
+            const resumeSkills = await ResumeSkill.getByResumeId(
+                resume.id
+            );
+
+            skillResult = compareSkills(resumeSkills, jobSkills);
+            matchScore = skillResult.matchPercentage;
+
+            const effectiveDeadline = getEffectiveDeadline(
+                { deadline },
+                job.deadline
+            );
+
+            const daysRemaining = getDaysRemaining(effectiveDeadline);
+
+            if (
+                activeStatuses.includes(status) &&
+                daysRemaining !== null
+            ) {
+                priorityScore = calculatePriorityScore({
+                    daysRemaining,
+                    matchedSkills: skillResult.matchedCount,
+                    requiredSkills: skillResult.totalRequiredSkills,
+                    status
+                });
+            }
+
+            // Eligibility is informational; it does not block an application.
+            const profile = await UserProfile.findByUserId(userId);
+
+            if (profile) {
+                eligibility = checkEligibility(profile, job);
             }
         }
 
@@ -68,8 +155,8 @@ export const createApplication = async (req, res, next) => {
             resume_id,
             status,
             priority_level,
-            match_score,
-            priority_score,
+            match_score: matchScore,
+            priority_score: priorityScore,
             applied_date,
             deadline,
             notes
@@ -80,7 +167,11 @@ export const createApplication = async (req, res, next) => {
         return res.status(201).json(
             new apiResponse(
                 201,
-                { application },
+                {
+                    application,
+                    skillMatch: skillResult,
+                    eligibility
+                },
                 "Application created successfully."
             )
         );
@@ -95,10 +186,46 @@ export const getMyApplications = async (req, res, next) => {
             req.user.userId
         );
 
+        const queue = new PriorityQueue();
+
+        for (const application of applications) {
+            const storedScore =
+                application.priority_score == null
+                    ? 0
+                    : Number(application.priority_score);
+
+            if (!Number.isFinite(storedScore)) {
+                throw new Error(
+                    `Invalid priority score for application ${application.id}`
+                );
+            }
+
+            queue.push({
+                ...application,
+                applicationId: String(application.id),
+                priorityScore: storedScore,
+                deadline: application.deadline ?? application.job_deadline ?? null
+            });
+        }
+
+        const rankedApplications = [];
+
+        while (!queue.isEmpty()) {
+            const ranked = queue.pop();
+
+            const {
+                applicationId,
+                priorityScore,
+                ...application
+            } = ranked;
+
+            rankedApplications.push(application);
+        }
+
         return res.status(200).json(
             new apiResponse(
                 200,
-                { applications },
+                { applications: rankedApplications },
                 "Applications retrieved successfully."
             )
         );
@@ -147,9 +274,7 @@ export const updateApplication = async (req, res, next) => {
         const {
             status,
             priority_level,
-            notes,
-            priority_score,
-            match_score
+            notes
         } = req.body;
 
         if (
@@ -166,15 +291,16 @@ export const updateApplication = async (req, res, next) => {
             throw new apiError(400, "Invalid priority level.");
         }
 
+        // Do not accept client-supplied score changes.
+        // Recalculation is handled when application creation has
+        // sufficient job/resume/deadline data.
         const updatedData = {
             status: status ?? existingApplication.status,
             priority_level:
                 priority_level ?? existingApplication.priority_level,
             notes: notes ?? existingApplication.notes,
-            priority_score:
-                priority_score ?? existingApplication.priority_score,
-            match_score:
-                match_score ?? existingApplication.match_score
+            priority_score: existingApplication.priority_score,
+            match_score: existingApplication.match_score
         };
 
         await Application.update(id, userId, updatedData);

@@ -1,4 +1,5 @@
-import {db} from "../config/db.js";
+
+import { db } from "../config/db.js";
 
 const Application = {
     async create(data) {
@@ -57,6 +58,7 @@ const Application = {
             `SELECT
                 a.*,
                 j.title AS job_title,
+                j.deadline AS job_deadline,
                 c.name AS company_name
              FROM applications a
              LEFT JOIN jobs j ON a.job_id = j.id
