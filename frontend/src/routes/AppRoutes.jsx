@@ -6,6 +6,7 @@ import Dashboard from "../pages/Dashboard";
 import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import MyApplications from "../pages/MyApplications";
 
 import PriorityQueue from "../pages/PriorityQueue";
 import ResumeMatch from "../pages/ResumeMatch";
@@ -34,13 +35,13 @@ function AppRoutes() {
 
         {/* My Applications */}
         <Route
-          path="/applications"
-          element={
-            <MainLayout>
-              <h1 className="text-3xl font-bold">My Applications</h1>
-            </MainLayout>
-          }
-        />
+  path="/applications"
+  element={
+    <MainLayout>
+      <MyApplications />
+    </MainLayout>
+  }
+/>
 
         {/* Priority Queue */}
         <Route
@@ -74,6 +75,18 @@ function AppRoutes() {
 
         {/* Job & Internship Search */}
         {/* Support the existing sidebar route too */}
+<Route
+  path="/job-search"
+  element={
+    <MainLayout>
+      <h1 className="text-3xl font-bold">Job & Internship Search</h1>
+      <p className="mt-2 text-slate-600">
+        This page is under development.
+      </p>
+    </MainLayout>
+  }
+/>
+        
         {/* Application Timeline */}
         <Route
           path="/timeline"

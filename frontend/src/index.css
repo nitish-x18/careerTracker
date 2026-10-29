@@ -26,3 +26,29 @@ body {
   background-color: #f8fafc;
   color: #1e293b;
 }
+
+/* My Applications: horizontally scrollable full-width table */
+.applications-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.applications-table-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.applications-table-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.applications-table-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+
+.applications-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
