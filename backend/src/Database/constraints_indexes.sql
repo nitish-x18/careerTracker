@@ -1,5 +1,8 @@
 USE careerTracker_db;
 
+-- NOTE: CHECK constraints are saved but NOT enforced on TiDB Cloud Serverless
+-- (tidb_enable_check_constraint is off, expect warning 1105), so the backend must validate these rules too.
+
 -- Unique constraints
 ALTER TABLE applications
     ADD CONSTRAINT uq_applications_user_job UNIQUE (user_id, job_id);
@@ -25,7 +28,13 @@ ALTER TABLE user_profiles
 
 ALTER TABLE jobs
     ADD CONSTRAINT chk_jobs_min_cgpa
-        CHECK (min_cgpa IS NULL OR (min_cgpa >= 0 AND min_cgpa <= 10));
+        CHECK (min_cgpa IS NULL OR (min_cgpa >= 0 AND min_cgpa <= 10)),
+    ADD CONSTRAINT chk_jobs_grad_year_range
+        CHECK (min_grad_year IS NULL OR max_grad_year IS NULL OR min_grad_year <= max_grad_year),
+    ADD CONSTRAINT chk_jobs_min_grad_year
+        CHECK (min_grad_year IS NULL OR (min_grad_year BETWEEN 1990 AND 2100)),
+    ADD CONSTRAINT chk_jobs_max_grad_year
+        CHECK (max_grad_year IS NULL OR (max_grad_year BETWEEN 1990 AND 2100));
 
 ALTER TABLE resumes
     ADD CONSTRAINT chk_resumes_ats_score
@@ -55,6 +64,12 @@ CREATE INDEX idx_jobs_location_type_deadline
 
 CREATE INDEX idx_jobs_deadline
     ON jobs (deadline);
+
+CREATE INDEX idx_jobs_degree_major
+    ON jobs (required_degree, required_major);
+
+CREATE INDEX idx_jobs_grad_year
+    ON jobs (min_grad_year, max_grad_year);
 
 CREATE INDEX idx_applications_user_status
     ON applications (user_id, status);
