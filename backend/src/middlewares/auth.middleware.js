@@ -1,3 +1,4 @@
+
 import jwt from "jsonwebtoken";
 import { apiError } from "../utils/apiError.js";
 
@@ -18,7 +19,14 @@ export const authenticateUser = (req, res, next) => {
             throw new apiError(401, "Access token is missing.");
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        if (!decoded.userId) {
+            throw new apiError(401, "Invalid access token.");
+        }
 
         req.user = {
             userId: decoded.userId,
@@ -26,17 +34,22 @@ export const authenticateUser = (req, res, next) => {
         };
 
         next();
+
     } catch (error) {
         if (error instanceof apiError) {
             return next(error);
         }
 
         if (error.name === "TokenExpiredError") {
-            return next(new apiError(401, "Access token has expired."));
+            return next(
+                new apiError(401, "Access token has expired.")
+            );
         }
 
         if (error.name === "JsonWebTokenError") {
-            return next(new apiError(401, "Invalid access token."));
+            return next(
+                new apiError(401, "Invalid access token.")
+            );
         }
 
         return next(error);

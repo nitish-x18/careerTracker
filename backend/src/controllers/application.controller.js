@@ -61,6 +61,33 @@ function getEffectiveDeadline(application, jobDeadline = null) {
     return application.deadline || jobDeadline || null;
 }
 
+function validateOptionalDate(value, fieldName) {
+    if (value === undefined || value === null || value === "") {
+        return null;
+    }
+
+    if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
+    ) {
+        throw new apiError(
+            400,
+            `${fieldName} must be in YYYY-MM-DD format.`
+        );
+    }
+
+    const date = new Date(`${value}T00:00:00.000Z`);
+
+    if (
+        Number.isNaN(date.getTime()) ||
+        date.toISOString().slice(0, 10) !== value
+    ) {
+        throw new apiError(400, `Invalid ${fieldName}.`);
+    }
+
+    return value;
+}
+
 async function calculateApplicationMetrics({
     userId,
     job,
@@ -74,7 +101,12 @@ async function calculateApplicationMetrics({
     let eligibility = null;
 
     if (!job || !resume) {
-        return { matchScore, priorityScore, skillResult, eligibility };
+        return {
+            matchScore,
+            priorityScore,
+            skillResult,
+            eligibility
+        };
     }
 
     if (String(resume.user_id) !== String(userId)) {
@@ -109,9 +141,15 @@ async function calculateApplicationMetrics({
         eligibility = checkEligibility(profile, job);
     }
 
-    return { matchScore, priorityScore, skillResult, eligibility };
+    return {
+        matchScore,
+        priorityScore,
+        skillResult,
+        eligibility
+    };
 }
 
+// CREATE APPLICATION
 export const createApplication = async (req, res, next) => {
     try {
         const userId = req.user.userId;
@@ -133,6 +171,16 @@ export const createApplication = async (req, res, next) => {
         if (!allowedPriorities.includes(priority_level)) {
             throw new apiError(400, "Invalid priority level.");
         }
+
+        const validAppliedDate = validateOptionalDate(
+            applied_date,
+            "Applied date"
+        );
+
+        const validDeadline = validateOptionalDate(
+            deadline,
+            "Deadline"
+        );
 
         let job = null;
         let resume = null;
@@ -158,7 +206,7 @@ export const createApplication = async (req, res, next) => {
             job,
             resume,
             status,
-            deadline
+            deadline: validDeadline
         });
 
         const application = {
@@ -170,8 +218,8 @@ export const createApplication = async (req, res, next) => {
             priority_level,
             match_score: metrics.matchScore,
             priority_score: metrics.priorityScore,
-            applied_date,
-            deadline,
+            applied_date: validAppliedDate,
+            deadline: validDeadline,
             notes
         };
 
@@ -193,30 +241,50 @@ export const createApplication = async (req, res, next) => {
     }
 };
 
+// GET MY APPLICATIONS
 export const getMyApplications = async (req, res, next) => {
     try {
-        const applications = await Application.getByUserId(
-            req.user.userId
-        );
+        const userId = req.user.userId;
+
+        const applications = await Application.getByUserId(userId);
 
         const queue = new PriorityQueue();
 
         for (const application of applications) {
-            const storedScore =
-                application.priority_score == null
-                    ? 0
-                    : Number(application.priority_score);
+            let priorityScore = 0;
+            let matchScore = application.match_score ?? null;
 
-            if (!Number.isFinite(storedScore)) {
-                throw new Error(
-                    `Invalid priority score for application ${application.id}`
+            if (
+                activeStatuses.includes(application.status) &&
+                application.job_id &&
+                application.resume_id
+            ) {
+                const job = await Job.findById(application.job_id);
+
+                const resume = await Resume.findById(
+                    application.resume_id
                 );
+
+                if (job && resume) {
+                    const metrics = await calculateApplicationMetrics({
+                        userId,
+                        job,
+                        resume,
+                        status: application.status,
+                        deadline: application.deadline
+                    });
+
+                    priorityScore = metrics.priorityScore ?? 0;
+                    matchScore = metrics.matchScore;
+                }
             }
 
             queue.push({
                 ...application,
+                priority_score: priorityScore,
+                match_score: matchScore,
                 applicationId: String(application.id),
-                priorityScore: storedScore,
+                priorityScore: Number(priorityScore),
                 deadline:
                     application.deadline ||
                     application.job_deadline ||
@@ -255,6 +323,7 @@ export const getMyApplications = async (req, res, next) => {
     }
 };
 
+// GET APPLICATION BY ID
 export const getApplicationById = async (req, res, next) => {
     try {
         const application = await Application.findById(
@@ -278,21 +347,25 @@ export const getApplicationById = async (req, res, next) => {
     }
 };
 
+// UPDATE APPLICATION
 export const updateApplication = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { id } = req.params;
 
-        const existingApplication = await Application.findById(
-            id,
-            userId
-        );
+        const existingApplication = await Application.findById(id, userId);
 
         if (!existingApplication) {
             throw new apiError(404, "Application not found.");
         }
 
-        const { status, priority_level, notes } = req.body;
+        const {
+            status,
+            priority_level,
+            notes,
+            deadline,
+            applied_date
+        } = req.body;
 
         if (
             status !== undefined &&
@@ -310,20 +383,34 @@ export const updateApplication = async (req, res, next) => {
 
         const nextStatus = status ?? existingApplication.status;
 
+        const nextDeadline =
+            deadline === undefined
+                ? existingApplication.deadline
+                : validateOptionalDate(deadline, "Deadline");
+
+        const nextAppliedDate =
+            applied_date === undefined
+                ? existingApplication.applied_date
+                : validateOptionalDate(applied_date, "Applied date");
+
+        const statusChanged =
+            nextStatus !== existingApplication.status;
+
+        const deadlineChanged =
+            nextDeadline !== existingApplication.deadline;
+
         let priorityScore = existingApplication.priority_score;
         let matchScore = existingApplication.match_score;
 
-        const statusChanged =
-            status !== undefined &&
-            status !== existingApplication.status;
-
-        if (
-            statusChanged &&
-            activeStatuses.includes(nextStatus) &&
+        if (!activeStatuses.includes(nextStatus)) {
+            priorityScore = null;
+        } else if (
+            (statusChanged || deadlineChanged) &&
             existingApplication.job_id &&
             existingApplication.resume_id
         ) {
             const job = await Job.findById(existingApplication.job_id);
+
             const resume = await Resume.findById(
                 existingApplication.resume_id
             );
@@ -334,27 +421,26 @@ export const updateApplication = async (req, res, next) => {
                     job,
                     resume,
                     status: nextStatus,
-                    deadline: existingApplication.deadline
+                    deadline: nextDeadline
                 });
 
-                priorityScore = metrics.priorityScore ?? priorityScore;
-                matchScore = metrics.matchScore ?? matchScore;
+                priorityScore = metrics.priorityScore;
+                matchScore = metrics.matchScore;
             }
-        } else if (
-            statusChanged &&
-            !activeStatuses.includes(nextStatus)
-        ) {
-            // Closed applications no longer need an active ranking score.
-            priorityScore = null;
         }
 
         const updatedData = {
             status: nextStatus,
             priority_level:
                 priority_level ?? existingApplication.priority_level,
-            notes: notes ?? existingApplication.notes,
+            notes:
+                notes === undefined
+                    ? existingApplication.notes
+                    : notes,
             priority_score: priorityScore,
-            match_score: matchScore
+            match_score: matchScore,
+            applied_date: nextAppliedDate,
+            deadline: nextDeadline
         };
 
         await Application.update(id, userId, updatedData);
@@ -373,15 +459,13 @@ export const updateApplication = async (req, res, next) => {
     }
 };
 
+// DELETE APPLICATION
 export const deleteApplication = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { id } = req.params;
 
-        const existingApplication = await Application.findById(
-            id,
-            userId
-        );
+        const existingApplication = await Application.findById(id, userId);
 
         if (!existingApplication) {
             throw new apiError(404, "Application not found.");

@@ -7,6 +7,10 @@ function getDaysRemaining(deadline, today = new Date()) {
         return null;
     }
 
+    if (!(today instanceof Date) || !Number.isFinite(today.getTime())) {
+        throw new Error("Today must be a valid date");
+    }
+
     const deadlineDate = new Date(deadline);
 
     if (!Number.isFinite(deadlineDate.getTime())) {
@@ -46,7 +50,9 @@ function classifyApplicationRisk(application, today = new Date()) {
         };
     }
 
-    const deadline = application.deadline ?? application.job_deadline ?? null;
+    const deadline =
+        application.deadline ?? application.job_deadline ?? null;
+
     const daysRemaining = getDaysRemaining(deadline, today);
 
     if (daysRemaining === null) {

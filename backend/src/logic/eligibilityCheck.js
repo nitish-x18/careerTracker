@@ -11,7 +11,11 @@ function checkEligibility(student, job) {
     if (job.min_cgpa != null) {
         const minimumCGPA = Number(job.min_cgpa);
 
-        if (!Number.isFinite(minimumCGPA)) {
+        if (
+            !Number.isFinite(minimumCGPA) ||
+            minimumCGPA < 0 ||
+            minimumCGPA > 10
+        ) {
             throw new Error("Job minimum CGPA is invalid");
         }
 
@@ -20,7 +24,11 @@ function checkEligibility(student, job) {
         } else {
             const studentCGPA = Number(student.cgpa);
 
-            if (!Number.isFinite(studentCGPA)) {
+            if (
+                !Number.isFinite(studentCGPA) ||
+                studentCGPA < 0 ||
+                studentCGPA > 10
+            ) {
                 unverified.push("Student CGPA is invalid");
             } else if (studentCGPA < minimumCGPA) {
                 reasons.push("Minimum CGPA requirement not met");
@@ -30,7 +38,7 @@ function checkEligibility(student, job) {
 
     // 2. Degree eligibility
     if (job.required_degree != null && job.required_degree !== "") {
-        if (!student.degree) {
+        if (!student.degree || !String(student.degree).trim()) {
             unverified.push("Student degree is missing");
         } else if (
             String(student.degree).trim().toLowerCase() !==
@@ -42,7 +50,7 @@ function checkEligibility(student, job) {
 
     // 3. Branch / major eligibility
     if (job.required_major != null && job.required_major !== "") {
-        if (!student.major) {
+        if (!student.major || !String(student.major).trim()) {
             unverified.push("Student branch/major is missing");
         } else if (
             String(student.major).trim().toLowerCase() !==
@@ -54,6 +62,22 @@ function checkEligibility(student, job) {
 
     // 4. Graduation year eligibility
     if (job.min_grad_year != null || job.max_grad_year != null) {
+        const minYear = job.min_grad_year == null
+            ? null
+            : Number(job.min_grad_year);
+
+        const maxYear = job.max_grad_year == null
+            ? null
+            : Number(job.max_grad_year);
+
+        if (
+            (minYear !== null && (!Number.isInteger(minYear) || minYear < 1990 || minYear > 2100)) ||
+            (maxYear !== null && (!Number.isInteger(maxYear) || maxYear < 1990 || maxYear > 2100)) ||
+            (minYear !== null && maxYear !== null && minYear > maxYear)
+        ) {
+            throw new Error("Job graduation year requirements are invalid");
+        }
+
         const graduationYear = Number(student.grad_year);
 
         if (
@@ -63,17 +87,11 @@ function checkEligibility(student, job) {
         ) {
             unverified.push("Student graduation year is missing or invalid");
         } else {
-            if (
-                job.min_grad_year != null &&
-                graduationYear < Number(job.min_grad_year)
-            ) {
+            if (minYear !== null && graduationYear < minYear) {
                 reasons.push("Graduation year is earlier than allowed");
             }
 
-            if (
-                job.max_grad_year != null &&
-                graduationYear > Number(job.max_grad_year)
-            ) {
+            if (maxYear !== null && graduationYear > maxYear) {
                 reasons.push("Graduation year is later than allowed");
             }
         }
