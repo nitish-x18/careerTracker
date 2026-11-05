@@ -78,7 +78,9 @@ const Application = {
                  priority_level = ?,
                  notes = ?,
                  priority_score = ?,
-                 match_score = ?
+                 match_score = ?,
+                 applied_date = ?,
+                 deadline = ?
              WHERE id = ? AND user_id = ?`,
             [
                 data.status,
@@ -86,6 +88,8 @@ const Application = {
                 data.notes,
                 data.priority_score,
                 data.match_score,
+                data.applied_date,
+                data.deadline,
                 id,
                 user_id
             ]

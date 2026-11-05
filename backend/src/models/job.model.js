@@ -1,40 +1,48 @@
 import {db} from "../config/db.js";
 
 const Job = {
-    async create(data) {
-        const [result] = await db.execute(
-            `INSERT INTO jobs
-            (
-                id,
-                company_id,
-                title,
-                type,
-                season,
-                location,
-                pay,
-                deadline,
-                min_cgpa,
-                work_auth_req,
-                source_url
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                data.id,
-                data.company_id,
-                data.title,
-                data.type,
-                data.season,
-                data.location,
-                data.pay,
-                data.deadline,
-                data.min_cgpa,
-                data.work_auth_req,
-                data.source_url
-            ]
-        );
+   async create(data) {
+    const [result] = await db.execute(
+        `INSERT INTO jobs
+        (
+            id,
+            company_id,
+            title,
+            type,
+            season,
+            location,
+            pay,
+            deadline,
+            min_cgpa,
+            work_auth_req,
+            source_url,
+            required_degree,
+            required_major,
+            min_grad_year,
+            max_grad_year
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            data.id,
+            data.company_id,
+            data.title,
+            data.type,
+            data.season,
+            data.location,
+            data.pay,
+            data.deadline,
+            data.min_cgpa,
+            data.work_auth_req,
+            data.source_url,
+            data.required_degree ?? null,
+            data.required_major ?? null,
+            data.min_grad_year ?? null,
+            data.max_grad_year ?? null
+        ]
+    );
 
-        return result;
-    },
+    return result;
+},
 
     async findById(id) {
         const [rows] = await db.execute(

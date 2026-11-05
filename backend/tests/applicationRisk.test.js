@@ -66,3 +66,41 @@ test("missing application data is rejected", () => {
         /Application data is required/
     );
 });
+test("invalid deadline returns Needs Attention", () => {
+    const result = classifyApplicationRisk(
+        { status: "applied", deadline: "invalid-date" },
+        today
+    );
+
+    assert.equal(result.riskStatus, "Needs Attention");
+    assert.equal(result.daysRemaining, null);
+});
+
+test("deadline exactly 3 days away Needs Attention", () => {
+    const result = classifyApplicationRisk(
+        { status: "interview", deadline: "2026-11-01" },
+        today
+    );
+
+    assert.equal(result.riskStatus, "Needs Attention");
+    assert.equal(result.daysRemaining, 3);
+});
+
+test("interview application with distant deadline is On Track", () => {
+    const result = classifyApplicationRisk(
+        { status: "interview", deadline: "2026-11-10" },
+        today
+    );
+
+    assert.equal(result.riskStatus, "On Track");
+});
+
+test("invalid today date is rejected", () => {
+    assert.throws(
+        () => classifyApplicationRisk(
+            { status: "saved", deadline: "2026-11-10" },
+            new Date("invalid")
+        ),
+        /Today must be a valid date/
+    );
+});
