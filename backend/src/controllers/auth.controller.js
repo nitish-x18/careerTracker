@@ -6,6 +6,7 @@ import { generateAccessToken } from "../utils/jwt.utils.js";
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 
+// REGISTER USER
 export const registerUser = async (req, res, next) => {
     try {
         const { name, email, password } = req.body;
@@ -69,6 +70,7 @@ export const registerUser = async (req, res, next) => {
     }
 };
 
+// LOGIN USER
 export const loginUser = async (req, res, next) => {
     try {
         const { email, password } = req.body;
@@ -117,6 +119,36 @@ export const loginUser = async (req, res, next) => {
                     accessToken
                 },
                 "Login successful."
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+// GET CURRENT LOGGED-IN USER
+export const getCurrentUser = async (req, res, next) => {
+    try {
+        const userId = req.user.userId;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            throw new apiError(404, "User not found.");
+        }
+
+        return res.status(200).json(
+            new apiResponse(
+                200,
+                {
+                    user: {
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        auth_provider: user.auth_provider
+                    }
+                },
+                "User details fetched successfully."
             )
         );
     } catch (error) {

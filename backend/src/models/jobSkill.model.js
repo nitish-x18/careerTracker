@@ -1,4 +1,5 @@
-import {db} from "../config/db.js";
+
+import { db } from "../config/db.js";
 
 const JobSkill = {
     async add({ job_id, skill_id, required = 1 }) {
