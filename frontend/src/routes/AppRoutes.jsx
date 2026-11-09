@@ -1,12 +1,16 @@
+
 import { Routes, Route } from "react-router-dom";
 
 import MainLayout from "../components/layout/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
-import Dashboard from "../pages/Dashboard";
+
 import Landing from "../pages/Landing";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+
+import Dashboard from "../pages/Dashboard";
 import MyApplications from "../pages/MyApplications";
+import JobAndIntern from "../pages/JobAndIntern";
 
 import PriorityQueue from "../pages/PriorityQueue";
 import ResumeMatch from "../pages/ResumeMatch";
@@ -23,27 +27,24 @@ function AppRoutes() {
 
       {/* Protected Pages */}
       <Route element={<ProtectedRoute />}>
-        {/* Dashboard */}
         <Route
-  path="/dashboard"
-  element={
-    <MainLayout>
-      <Dashboard />
-    </MainLayout>
-  }
-/>
+          path="/dashboard"
+          element={
+            <MainLayout>
+              <Dashboard />
+            </MainLayout>
+          }
+        />
 
-        {/* My Applications */}
         <Route
-  path="/applications"
-  element={
-    <MainLayout>
-      <MyApplications />
-    </MainLayout>
-  }
-/>
+          path="/applications"
+          element={
+            <MainLayout>
+              <MyApplications />
+            </MainLayout>
+          }
+        />
 
-        {/* Priority Queue */}
         <Route
           path="/priority-queue"
           element={
@@ -53,7 +54,15 @@ function AppRoutes() {
           }
         />
 
-        {/* Resume Match */}
+        <Route
+          path="/job-search"
+          element={
+            <MainLayout>
+              <JobAndIntern />
+            </MainLayout>
+          }
+        />
+
         <Route
           path="/resume-match"
           element={
@@ -63,7 +72,6 @@ function AppRoutes() {
           }
         />
 
-        {/* Eligibility Checker */}
         <Route
           path="/eligibility"
           element={
@@ -73,41 +81,28 @@ function AppRoutes() {
           }
         />
 
-        {/* Job & Internship Search */}
-        {/* Support the existing sidebar route too */}
-<Route
-  path="/job-search"
-  element={
-    <MainLayout>
-      <h1 className="text-3xl font-bold">Job & Internship Search</h1>
-      <p className="mt-2 text-slate-600">
-        This page is under development.
-      </p>
-    </MainLayout>
-  }
-/>
-        
-        {/* Application Timeline */}
         <Route
           path="/timeline"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Timeline</h1>
+              <h1 className="text-2xl font-bold">
+                Application Timeline
+              </h1>
             </MainLayout>
           }
         />
 
-        {/* Settings */}
         <Route
           path="/settings"
           element={
             <MainLayout>
-              <h1 className="text-3xl font-bold">Settings</h1>
+              <h1 className="text-2xl font-bold">
+                Settings
+              </h1>
             </MainLayout>
           }
         />
 
-        {/* User Profile */}
         <Route
           path="/profile"
           element={
