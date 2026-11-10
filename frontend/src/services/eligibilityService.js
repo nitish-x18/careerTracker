@@ -1,13 +1,50 @@
-
 import { api } from "./api";
 
-// API endpoint backend team ke contract ke mutabik set karna hai.
-const ELIGIBILITY_ENDPOINT = "/api/eligibility";
+const JOBS_ENDPOINT = "/api/jobs";
+const APPLICATIONS_ENDPOINT = "/api/applications";
+const RESUMES_ENDPOINT = "/api/resumes";
+const PROFILE_ENDPOINT = "/api/profile";
 
 export const eligibilityService = {
-  check: (profileData) =>
-    api.post(ELIGIBILITY_ENDPOINT, profileData),
+  // Fetch all available jobs
+  getJobs: async () => {
+    const response = await api.get(JOBS_ENDPOINT);
+    return response.data.jobs || [];
+  },
 
-  getMyEligibility: () =>
-    api.get(ELIGIBILITY_ENDPOINT),
+  // Fetch logged-in user's applications
+  getApplications: async () => {
+    const response = await api.get(APPLICATIONS_ENDPOINT);
+    return response.data.applications || [];
+  },
+
+  // Fetch logged-in user's resumes
+  getResumes: async () => {
+    const response = await api.get(RESUMES_ENDPOINT);
+    return response.data.resumes || [];
+  },
+
+  // Fetch logged-in user's profile
+  getProfile: async () => {
+    const response = await api.get(PROFILE_ENDPOINT);
+    return response.data.profile || null;
+  },
+
+  // Fetch skills required for a particular job
+  getJobSkills: async (jobId) => {
+    const response = await api.get(
+      `${JOBS_ENDPOINT}/${encodeURIComponent(jobId)}/skills`
+    );
+
+    return response.data.skills || [];
+  },
+
+  // Fetch skills associated with a particular resume
+  getResumeSkills: async (resumeId) => {
+    const response = await api.get(
+      `${RESUMES_ENDPOINT}/${encodeURIComponent(resumeId)}/skills`
+    );
+
+    return response.data.skills || [];
+  },
 };

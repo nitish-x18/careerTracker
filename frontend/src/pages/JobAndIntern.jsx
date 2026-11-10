@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -14,11 +15,10 @@ import {
   RefreshCw,
   Building2,
 } from "lucide-react";
+import { jobService } from "../services/jobService";
 
 const filterOptions = {
   type: ["Full-time", "Internship", "Part-time", "Contract"],
-  mode: ["Remote", "Hybrid", "On-site"],
-  experience: ["Entry level", "Fresher", "Experienced"],
 };
 
 function SectionHeading({ icon: Icon, children, action }) {
@@ -45,53 +45,93 @@ function SidebarCard({ children, className = "" }) {
 
 export default function JobAndIntern() {
   const navigate = useNavigate();
+
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [jobType, setJobType] = useState("");
-  const [workMode, setWorkMode] = useState("");
-  const [experience, setExperience] = useState("");
-  const [sortBy, setSortBy] = useState("relevance");
+  const [sortBy, setSortBy] = useState("deadline");
   const [savedJobs, setSavedJobs] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   const [jobUrl, setJobUrl] = useState("");
   const [urlMessage, setUrlMessage] = useState("");
 
-  // Real job results will be loaded from the backend API.
-  // Keep the empty state until that API is connected.
-  const jobs = [];
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
+  // Fetch jobs from backend
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const jobData = await jobService.getAllJobs();
+
+        setJobs(Array.isArray(jobData) ? jobData : []);
+      } catch (err) {
+        setError(err.message || "Failed to load jobs.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, [reloadKey]);
+
+  // Search, filter and sort jobs
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const normalizedLocation = location.trim().toLowerCase();
 
     return jobs
       .filter((job) => {
-        const searchableText = [job.title, job.company, ...(job.skills || [])]
+        const searchableText = [
+          job.title,
+          job.company_name,
+        ]
+          .filter(Boolean)
           .join(" ")
           .toLowerCase();
 
+        const jobLocation = (job.location || "").toLowerCase();
+        const type = (job.type || "").toLowerCase();
+
         return (
-          (!normalizedQuery || searchableText.includes(normalizedQuery)) &&
+          (!normalizedQuery ||
+            searchableText.includes(normalizedQuery)) &&
           (!normalizedLocation ||
-            (job.location || "").toLowerCase().includes(normalizedLocation)) &&
-          (!jobType || job.type === jobType) &&
-          (!workMode || job.mode === workMode) &&
-          (!experience || job.experience === experience)
+            jobLocation.includes(normalizedLocation)) &&
+          (!jobType || type === jobType.toLowerCase())
         );
       })
       .sort((a, b) => {
-        if (sortBy === "newest") {
-          return new Date(b.postedAt || 0) - new Date(a.postedAt || 0);
+        if (sortBy === "deadline") {
+          const dateA = a.deadline
+            ? new Date(a.deadline).getTime()
+            : Infinity;
+
+          const dateB = b.deadline
+            ? new Date(b.deadline).getTime()
+            : Infinity;
+
+          return dateA - dateB;
         }
-        return (b.matchScore || 0) - (a.matchScore || 0);
+
+        if (sortBy === "title") {
+          return (a.title || "").localeCompare(b.title || "");
+        }
+
+        return 0;
       });
-  }, [jobs, query, location, jobType, workMode, experience, sortBy]);
+  }, [jobs, query, location, jobType, sortBy]);
 
   function toggleSaved(id) {
     setSavedJobs((current) =>
       current.includes(id)
         ? current.filter((savedId) => savedId !== id)
-        : [...current, id],
+        : [...current, id]
     );
   }
 
@@ -103,11 +143,11 @@ export default function JobAndIntern() {
       const parsed = new URL(jobUrl.trim());
 
       if (!["https:", "http:"].includes(parsed.protocol)) {
-        throw new Error("Invalid protocol");
+        throw new Error("Invalid URL");
       }
 
       setUrlMessage(
-        "URL is valid. Job importing will work once the backend endpoint is connected.",
+        "Valid job URL. Automatic importing is not available yet."
       );
     } catch {
       setUrlMessage("Please enter a valid job posting URL.");
@@ -118,13 +158,25 @@ export default function JobAndIntern() {
     setQuery("");
     setLocation("");
     setJobType("");
-    setWorkMode("");
-    setExperience("");
   }
 
-  const activeFilterCount = [jobType, workMode, experience].filter(
-    Boolean,
-  ).length;
+  function formatDate(date) {
+    if (!date) return "Not specified";
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "Not specified";
+    }
+
+    return parsedDate.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  const activeFilterCount = [jobType].filter(Boolean).length;
 
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-5 bg-white text-slate-800">
@@ -161,10 +213,11 @@ export default function JobAndIntern() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Job title, company, or skill"
-              aria-label="Search job title, company, or skill"
+              placeholder="Job title or company"
+              aria-label="Search job title or company"
               className="w-full min-w-0 bg-transparent text-[10px] outline-none placeholder:text-slate-400"
             />
+
             {query && (
               <button
                 type="button"
@@ -181,7 +234,7 @@ export default function JobAndIntern() {
             <input
               value={location}
               onChange={(event) => setLocation(event.target.value)}
-              placeholder="City or remote"
+              placeholder="City or location"
               aria-label="Filter by location"
               className="w-full min-w-0 bg-transparent text-[10px] outline-none placeholder:text-slate-400"
             />
@@ -195,6 +248,7 @@ export default function JobAndIntern() {
           >
             <SlidersHorizontal size={13} />
             Filters
+
             {activeFilterCount > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] text-violet-800">
                 {activeFilterCount}
@@ -211,18 +265,6 @@ export default function JobAndIntern() {
               options={filterOptions.type}
               onChange={setJobType}
             />
-            <FilterSelect
-              label="Work mode"
-              value={workMode}
-              options={filterOptions.mode}
-              onChange={setWorkMode}
-            />
-            <FilterSelect
-              label="Experience"
-              value={experience}
-              options={filterOptions.experience}
-              onChange={setExperience}
-            />
 
             <div className="sm:col-span-3">
               <button
@@ -237,26 +279,23 @@ export default function JobAndIntern() {
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[9px] text-slate-400">Quick filters:</span>
+          <span className="text-[9px] text-slate-400">
+            Quick filters:
+          </span>
 
-          {["Internship", "Full-time", "Remote", "Entry level"].map((item) => {
-            const isActive =
-              jobType === item || workMode === item || experience === item;
+          {["Internship", "Full-time"].map((item) => {
+            const isActive = jobType === item;
 
             return (
               <button
                 key={item}
                 type="button"
                 aria-pressed={isActive}
-                onClick={() => {
-                  if (item === "Internship" || item === "Full-time") {
-                    setJobType((current) => (current === item ? "" : item));
-                  } else if (item === "Remote") {
-                    setWorkMode((current) => (current === item ? "" : item));
-                  } else {
-                    setExperience((current) => (current === item ? "" : item));
-                  }
-                }}
+                onClick={() =>
+                  setJobType((current) =>
+                    current === item ? "" : item
+                  )
+                }
                 className={`rounded-full border px-2.5 py-1 text-[9px] transition ${
                   isActive
                     ? "border-violet-300 bg-violet-100 font-semibold text-violet-800"
@@ -278,38 +317,56 @@ export default function JobAndIntern() {
               <h2 className="text-[13px] font-bold text-slate-800">
                 Available opportunities
               </h2>
+
               <p className="mt-0.5 text-[9px] text-slate-500">
-                {filteredJobs.length} opportunities found
+                {loading ? "Loading..." : `${filteredJobs.length} opportunities found`}
               </p>
             </div>
 
             <label className="flex items-center gap-2 text-[9px] text-slate-500">
               Sort by
+
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value)}
                 className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[9px] font-semibold text-slate-700 outline-none focus:border-violet-500"
               >
-                <option value="relevance">Relevance</option>
-                <option value="newest">Newest</option>
+                <option value="deadline">Deadline</option>
+                <option value="title">Job title</option>
               </select>
             </label>
           </div>
 
-          {filteredJobs.length === 0 ? (
+          {loading ? (
+            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 text-[11px] text-slate-500">
+              Loading job opportunities...
+            </div>
+          ) : error ? (
+            <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center">
+              <p className="text-[11px] text-red-600">{error}</p>
+
+              <button
+                type="button"
+                onClick={() => setReloadKey((current) => current + 1)}
+                className="rounded-md bg-violet-700 px-4 py-2 text-[10px] font-semibold text-white hover:bg-violet-800"
+              >
+                Try again
+              </button>
+            </div>
+          ) : filteredJobs.length === 0 ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-5 py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
                 <BriefcaseBusiness size={22} />
               </div>
 
               <h3 className="mt-4 text-[13px] font-bold text-slate-800">
-                Job listings will appear here
+                No job listings found
               </h3>
 
               <p className="mt-2 max-w-sm text-[10px] leading-relaxed text-slate-500">
-                The search interface is ready. Connect the jobs API to load real
-                opportunities and enable live search, filters, and matching
-                scores.
+                {jobs.length === 0
+                  ? "There are currently no job opportunities available."
+                  : "Try changing your search or filters to find opportunities."}
               </p>
 
               {(query || location || activeFilterCount > 0) && (
@@ -338,23 +395,43 @@ export default function JobAndIntern() {
                       <h3 className="text-[12px] font-bold text-slate-800">
                         {job.title}
                       </h3>
+
                       <p className="mt-1 text-[10px] text-slate-500">
-                        {job.company}
+                        {job.company_name || "Company not specified"}
                       </p>
+
                       <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <MapPin size={10} />
-                          {job.location}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <BriefcaseBusiness size={10} />
-                          {job.type}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock3 size={10} />
-                          {job.mode}
-                        </span>
+                        {job.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={10} />
+                            {job.location}
+                          </span>
+                        )}
+
+                        {job.type && (
+                          <span className="flex items-center gap-1">
+                            <BriefcaseBusiness size={10} />
+                            {job.type}
+                          </span>
+                        )}
+
+                        {job.season && (
+                          <span className="flex items-center gap-1">
+                            <Clock3 size={10} />
+                            {job.season}
+                          </span>
+                        )}
                       </div>
+
+                      {job.pay && (
+                        <p className="mt-2 text-[10px] font-semibold text-slate-700">
+                          Pay: {job.pay}
+                        </p>
+                      )}
+
+                      <p className="mt-1 text-[9px] text-slate-500">
+                        Application deadline: {formatDate(job.deadline)}
+                      </p>
                     </div>
 
                     <button
@@ -375,23 +452,18 @@ export default function JobAndIntern() {
                     </button>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                    <span className="text-[9px] font-semibold text-violet-700">
-                      {job.matchScore != null
-                        ? `${job.matchScore}% profile match`
-                        : "Match score unavailable"}
-                    </span>
-                    {job.url && (
+                  {job.source_url && (
+                    <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
                       <a
-                        href={job.url}
+                        href={job.source_url}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="flex items-center gap-1 rounded-md bg-violet-700 px-3 py-2 text-[9px] font-semibold text-white hover:bg-violet-800"
                       >
                         View job <ExternalLink size={11} />
                       </a>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
@@ -401,18 +473,24 @@ export default function JobAndIntern() {
         {/* Right sidebar */}
         <aside className="min-w-0 space-y-4">
           <SidebarCard>
-            <SectionHeading icon={Sparkles}>Match Persona</SectionHeading>
+            <SectionHeading icon={Sparkles}>
+              Match Persona
+            </SectionHeading>
+
             <div className="rounded-lg bg-violet-50 p-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-700 shadow-sm">
                 <Sparkles size={16} />
               </div>
+
               <p className="mt-2 text-[11px] font-bold text-slate-800">
                 Your career profile
               </p>
+
               <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
                 Add your skills and career preferences to personalize job
                 recommendations.
               </p>
+
               <button
                 type="button"
                 onClick={() => navigate("/profile")}
@@ -421,16 +499,20 @@ export default function JobAndIntern() {
                 Complete profile
               </button>
             </div>
+
             <p className="mt-2 text-[8px] leading-relaxed text-slate-400">
-              Personalized matching will be available when profile and job data
-              are connected.
+              Personalized matching will be available when matching
+              functionality is connected.
             </p>
           </SidebarCard>
 
           <SidebarCard>
-            <SectionHeading icon={Plus}>Quick Add by URL</SectionHeading>
+            <SectionHeading icon={Plus}>
+              Quick Add by URL
+            </SectionHeading>
+
             <p className="mb-3 text-[9px] leading-relaxed text-slate-500">
-              Paste a job posting link to prepare it for importing.
+              Paste a job posting link to check whether it is valid.
             </p>
 
             <form onSubmit={handleUrlSubmit} className="space-y-2">
@@ -466,14 +548,19 @@ export default function JobAndIntern() {
           </SidebarCard>
 
           <SidebarCard>
-            <SectionHeading icon={RefreshCw}>Weekly Inflow</SectionHeading>
+            <SectionHeading icon={RefreshCw}>
+              Weekly Inflow
+            </SectionHeading>
+
             <div className="flex min-h-24 flex-col items-center justify-center rounded-lg bg-slate-50 px-3 py-4 text-center">
               <BriefcaseBusiness size={19} className="text-slate-300" />
+
               <p className="mt-2 text-[10px] font-semibold text-slate-700">
                 No weekly data yet
               </p>
+
               <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
-                New job trends will appear once listings are connected.
+                Weekly job trends are not available from the current jobs API.
               </p>
             </div>
           </SidebarCard>
@@ -489,12 +576,14 @@ function FilterSelect({ label, value, options, onChange }) {
       <span className="mb-1.5 block text-[9px] font-semibold text-slate-600">
         {label}
       </span>
+
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[10px] text-slate-700 outline-none focus:border-violet-500"
       >
         <option value="">All</option>
+
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
