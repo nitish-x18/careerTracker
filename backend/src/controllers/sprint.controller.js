@@ -1,16 +1,34 @@
 
+import crypto from "node:crypto";
+
 import Sprint from "../models/sprint.model.js";
 import SkillGap from "../models/skillGap.model.js";
+
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 
+const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const validateUUID = (id, fieldName) => {
+    if (!id || !uuidRegex.test(String(id))) {
+        throw new apiError(
+            400,
+            `${fieldName} must be a valid UUID.`
+        );
+    }
+};
+
+// Create a new sprint
 export const createSprint = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { skill_gap_id, title, est_hours } = req.body;
 
-        if (!skill_gap_id || !title || !title.trim()) {
-            throw new apiError(400, "Skill gap ID and sprint title are required.");
+        validateUUID(skill_gap_id, "Skill gap ID");
+
+        if (typeof title !== "string" || !title.trim()) {
+            throw new apiError(400, "Sprint title is required.");
         }
 
         if (
@@ -18,10 +36,16 @@ export const createSprint = async (req, res, next) => {
             !Number.isFinite(Number(est_hours)) ||
             Number(est_hours) <= 0
         ) {
-            throw new apiError(400, "Estimated hours must be a positive number.");
+            throw new apiError(
+                400,
+                "Estimated hours must be a positive number."
+            );
         }
 
-        const skillGap = await SkillGap.findById(skill_gap_id, userId);
+        const skillGap = await SkillGap.findById(
+            skill_gap_id,
+            userId
+        );
 
         if (!skillGap) {
             throw new apiError(404, "Skill gap not found.");
@@ -38,23 +62,29 @@ export const createSprint = async (req, res, next) => {
         });
 
         return res.status(201).json(
-            new apiResponse(201, { sprintId: id }, "Sprint created successfully.")
+            new apiResponse(
+                201,
+                { sprintId: id },
+                "Sprint created successfully."
+            )
         );
     } catch (error) {
         next(error);
     }
 };
 
+// Get all sprints belonging to a skill gap
 export const getMySprints = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { skillGapId } = req.params;
 
-        if (!skillGapId) {
-            throw new apiError(400, "Skill gap ID is required.");
-        }
+        validateUUID(skillGapId, "Skill gap ID");
 
-        const skillGap = await SkillGap.findById(skillGapId, userId);
+        const skillGap = await SkillGap.findById(
+            skillGapId,
+            userId
+        );
 
         if (!skillGap) {
             throw new apiError(404, "Skill gap not found.");
@@ -63,20 +93,32 @@ export const getMySprints = async (req, res, next) => {
         const sprints = await Sprint.getBySkillGapId(skillGapId);
 
         return res.status(200).json(
-            new apiResponse(200, { sprints }, "Sprints retrieved successfully.")
+            new apiResponse(
+                200,
+                { sprints },
+                "Sprints retrieved successfully."
+            )
         );
     } catch (error) {
         next(error);
     }
 };
 
+// Update sprint status
 export const updateSprintStatus = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { skillGapId, sprintId } = req.params;
         const { status } = req.body;
 
-        const allowedStatuses = ["planned", "in_progress", "completed"];
+        validateUUID(skillGapId, "Skill gap ID");
+        validateUUID(sprintId, "Sprint ID");
+
+        const allowedStatuses = [
+            "planned",
+            "in_progress",
+            "completed"
+        ];
 
         if (!allowedStatuses.includes(status)) {
             throw new apiError(
@@ -85,51 +127,92 @@ export const updateSprintStatus = async (req, res, next) => {
             );
         }
 
-        const skillGap = await SkillGap.findById(skillGapId, userId);
+        const skillGap = await SkillGap.findById(
+            skillGapId,
+            userId
+        );
 
         if (!skillGap) {
             throw new apiError(404, "Skill gap not found.");
         }
 
         const sprints = await Sprint.getBySkillGapId(skillGapId);
-        const sprintExists = sprints.some(sprint => sprint.id === sprintId);
+
+        const sprintExists = sprints.some(
+            sprint => String(sprint.id) === String(sprintId)
+        );
 
         if (!sprintExists) {
             throw new apiError(404, "Sprint not found.");
         }
 
-        await Sprint.updateStatus(sprintId, status);
+        // Updated model call
+        const result = await Sprint.updateStatus(
+            skillGapId,
+            sprintId,
+            status
+        );
+
+        if (result.affectedRows === 0) {
+            throw new apiError(404, "Sprint not found.");
+        }
 
         return res.status(200).json(
-            new apiResponse(200, {}, "Sprint status updated successfully.")
+            new apiResponse(
+                200,
+                {},
+                "Sprint status updated successfully."
+            )
         );
     } catch (error) {
         next(error);
     }
 };
 
+// Delete sprint
 export const deleteSprint = async (req, res, next) => {
     try {
         const userId = req.user.userId;
         const { skillGapId, sprintId } = req.params;
 
-        const skillGap = await SkillGap.findById(skillGapId, userId);
+        validateUUID(skillGapId, "Skill gap ID");
+        validateUUID(sprintId, "Sprint ID");
+
+        const skillGap = await SkillGap.findById(
+            skillGapId,
+            userId
+        );
 
         if (!skillGap) {
             throw new apiError(404, "Skill gap not found.");
         }
 
         const sprints = await Sprint.getBySkillGapId(skillGapId);
-        const sprintExists = sprints.some(sprint => sprint.id === sprintId);
+
+        const sprintExists = sprints.some(
+            sprint => String(sprint.id) === String(sprintId)
+        );
 
         if (!sprintExists) {
             throw new apiError(404, "Sprint not found.");
         }
 
-        await Sprint.delete(sprintId);
+        // Updated model call
+        const result = await Sprint.delete(
+            skillGapId,
+            sprintId
+        );
+
+        if (result.affectedRows === 0) {
+            throw new apiError(404, "Sprint not found.");
+        }
 
         return res.status(200).json(
-            new apiResponse(200, {}, "Sprint deleted successfully.")
+            new apiResponse(
+                200,
+                {},
+                "Sprint deleted successfully."
+            )
         );
     } catch (error) {
         next(error);

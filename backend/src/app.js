@@ -26,6 +26,9 @@ import savedSearchRoutes from "./routes/savedSearch.route.js";
 // Eligibility route
 import eligibilityRoutes from "./routes/eligibility.route.js";
 
+// Resume Match route
+import resumeMatchRoutes from "./routes/resumeMatch.route.js";
+
 // Middleware
 import { notFoundMiddleware } from "./middlewares/notFound.middleware.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
@@ -82,10 +85,13 @@ app.use("/api/saved-searches", savedSearchRoutes);
 // 6. Eligibility API
 app.use("/api/eligibility", eligibilityRoutes);
 
-// 7. Handle unknown routes
+// 7. Resume Match API
+app.use("/api/resumes", resumeMatchRoutes);
+
+// 8. Handle unknown routes
 app.use(notFoundMiddleware);
 
-// 8. Centralized error handler (must be last)
+// 9. Centralized error handler (must be last)
 app.use(errorMiddleware);
 
 export default app;
