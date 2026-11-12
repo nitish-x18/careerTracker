@@ -1,4 +1,3 @@
-
 export const applicationsData = [
   {
     id: "APP-001",
@@ -162,4 +161,47 @@ export const applicationsData = [
   },
 ];
 
+export const applicationConfig = {
+  types: [
+    "Internship",
+    "Full-time",
+    "Part-time",
+    "Contract",
+    "Co-op",
+    "Temporary",
+  ],
+
+  priorities: [
+    "Urgent",
+    "High Priority",
+    "Medium",
+    "Low",
+  ],
+
+  stages: [
+    "Draft Application",
+    "Applied - In Review",
+    "Assessment Due",
+    "Take-home Reviewing",
+    "Technical Screen",
+    "Technical Round 2",
+    "Final Round",
+    "Offer Received ($58/hr)",
+    "Rejected",
+  ],
+
+  defaults: {
+    type: "Internship",
+    priority: "Medium",
+    stage: "Applied - In Review",
+    appliedDate: "Not submitted",
+    deadline: "Rolling Admissions",
+    appliedAgo: "Just added",
+  },
+
+  metrics: {
+    averageResponseTime: 4.2,
+    averageResponseTimeUnit: "days",
+  },
+};
 

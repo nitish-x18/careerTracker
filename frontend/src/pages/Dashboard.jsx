@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -116,11 +115,11 @@ function StatCard({ stat }) {
           </span>
         )}
 
-        {stat.id === "total" && (
-          <span className="text-sm font-semibold text-violet-700">
-            70% goal
-          </span>
-        )}
+        {stat.goal && (
+  <span className="text-sm font-semibold text-violet-700">
+    {stat.goal}
+  </span>
+)}
       </div>
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -293,7 +292,7 @@ function DeadlinesPanel({ deadlines, onAction }) {
 
               <p className="mt-1 text-sm text-slate-500">{item.role}</p>
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-2 flex items-center justify-between gap-3">
                 <p
                   className={`flex items-center gap-1.5 text-sm ${
                     item.badgeStyle === "urgent"
@@ -383,14 +382,14 @@ function PipelineOverview({ stages, summary }) {
                 {stage.label}
               </p>
 
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
-                <span className="text-xl font-bold text-slate-800">
-                  {stage.value}
-                </span>
-                <span className={`text-sm font-medium ${colors.text}`}>
-                  {stage.percentage}%
-                </span>
-              </div>
+              <div className="mt-2 flex items-baseline justify-between">
+  <span className="text-xl font-bold text-slate-800">
+    {stage.value}
+  </span>
+  <span className={`text-sm font-medium ${colors.text}`}>
+    {stage.percentage}%
+  </span>
+</div>
 
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div
@@ -624,25 +623,25 @@ function QuickAddPanel({ content }) {
 export default function Dashboard() {
   const navigate = useNavigate();
 
-    const handlePriorityAction = (item) => {
-    if (item.action.includes("Timeline")) {
-      navigate("/timeline");
-    } else if (item.action.includes("Prep Room")) {
-      navigate("/priority-queue");
-    } else if (item.action.includes("Start Test")) {
-      navigate("/eligibility");
+  const handlePriorityAction = (item) => {
+    if (item.route) {
+      navigate(item.route);
     } else {
       navigate("/applications");
     }
   };
 
-  const handleSecondaryAction = () => {
-    navigate("/applications");
+  const handleSecondaryAction = (item) => {
+    if (item.secondaryRoute) {
+      navigate(item.secondaryRoute);
+    } else {
+      navigate("/applications");
+    }
   };
 
   const handleDeadlineAction = (item) => {
-    if (item.action === "Resume Check") {
-      navigate("/resume-match");
+    if (item.route) {
+      navigate(item.route);
     } else {
       navigate("/applications");
     }
@@ -666,19 +665,9 @@ export default function Dashboard() {
       return applications.sort((a, b) => b.match - a.match);
     }
 
-    const getUrgency = (item) => {
-      const task = `${item.task} ${item.time}`.toLowerCase();
-
-      if (task.includes("overdue")) return 0;
-      if (task.includes("today")) return 1;
-      if (task.includes("tomorrow")) return 2;
-      if (task.includes("in 2 days")) return 3;
-      if (task.includes("in 3 days")) return 4;
-
-      return 5;
-    };
-
-    return applications.sort((a, b) => getUrgency(a) - getUrgency(b));
+    return applications.sort(
+  (a, b) => (a.dueOrder ?? 999) - (b.dueOrder ?? 999)
+);
   }, [data, sortBy]);
 
   useEffect(() => {
@@ -833,7 +822,7 @@ export default function Dashboard() {
     key={item.id}
     item={item}
     onAction={() => handlePriorityAction(item)}
-    onSecondaryAction={handleSecondaryAction}
+    onSecondaryAction={() => handleSecondaryAction(item)}
   />
 ))
               ) : (
