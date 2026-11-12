@@ -1,4 +1,5 @@
-import {db} from "../config/db.js";
+
+import { db } from "../config/db.js";
 
 const Sprint = {
     async create(data) {
@@ -20,7 +21,8 @@ const Sprint = {
 
     async getBySkillGapId(skill_gap_id) {
         const [rows] = await db.execute(
-            `SELECT * FROM sprints
+            `SELECT *
+             FROM sprints
              WHERE skill_gap_id = ?`,
             [skill_gap_id]
         );
@@ -28,22 +30,22 @@ const Sprint = {
         return rows;
     },
 
-    async updateStatus(id, status) {
+    async updateStatus(skill_gap_id, id, status) {
         const [result] = await db.execute(
             `UPDATE sprints
              SET status = ?
-             WHERE id = ?`,
-            [status, id]
+             WHERE id = ? AND skill_gap_id = ?`,
+            [status, id, skill_gap_id]
         );
 
         return result;
     },
 
-    async delete(id) {
+    async delete(skill_gap_id, id) {
         const [result] = await db.execute(
             `DELETE FROM sprints
-             WHERE id = ?`,
-            [id]
+             WHERE id = ? AND skill_gap_id = ?`,
+            [id, skill_gap_id]
         );
 
         return result;

@@ -1,3 +1,4 @@
+
 import { Router } from "express";
 
 import {
@@ -13,9 +14,22 @@ const router = Router();
 
 router.use(authenticateUser);
 
+// Create sprint under a skill gap
 router.post("/", createSprint);
-router.get("/", getMySprints);
-router.patch("/:id/status", updateSprintStatus);
-router.delete("/:id", deleteSprint);
+
+// Get all sprints for a specific skill gap
+router.get("/:skillGapId", getMySprints);
+
+// Update sprint status
+router.patch(
+    "/:skillGapId/:sprintId/status",
+    updateSprintStatus
+);
+
+// Delete sprint
+router.delete(
+    "/:skillGapId/:sprintId",
+    deleteSprint
+);
 
 export default router;
