@@ -1,375 +1,257 @@
+import { useCallback, useEffect, useState } from "react";
+
 import {
   Activity,
   AlertCircle,
   ArrowDown,
-  ArrowRight,
-  ArrowUpRight,
-  BriefcaseBusiness,
   CalendarDays,
-  CheckCircle2,
   Clock,
   Flame,
   Gauge,
   Info,
-  Plus,
   RefreshCw,
-  Settings2,
   ShieldCheck,
   SlidersHorizontal,
   Target,
   TrendingUp,
-  Users,
   Zap,
-  FileText,
+  BriefcaseBusiness,
 } from "lucide-react";
 
-
-import { useState } from "react";
-
-
-import {
-  getAverageAlignmentScore,
-  getActiveOffers,
-  sortApplicationsByScore,
-  getUrgencyLabel,
-} from "../features/priority-queue/utils/priorityQueueUtils";
-
-
-import {
-  SiDatadog,
-  SiUber,
-  SiStripe,
-  SiVercel,
-  SiSnowflake,
-} from "@icons-pack/react-simple-icons";
-
-import { mockApplications }
-from "../features/priority-queue/data/mockApplications";
-
 import Card from "../components/ui/Card";
+import { api } from "../services/api";
 
 /* =========================================================
-   CONFIGURATION
-   Keep reusable styling and display settings in one place.
+   CONSTANTS
 ========================================================= */
 
-const statusStyles = {
-  red: {
-    badge: "border-red-200 bg-red-50 text-red-700",
-    text: "text-red-600",
-    alert: "border-red-100 bg-red-50/60",
-    icon: "text-red-600",
-  },
-  orange: {
-    badge: "border-orange-200 bg-orange-50 text-orange-700",
-    text: "text-orange-600",
-    alert: "border-orange-100 bg-orange-50/60",
-    icon: "text-orange-600",
-  },
-  blue: {
-    badge: "border-blue-200 bg-blue-50 text-blue-700",
-    text: "text-blue-600",
-    alert: "border-gray-100 bg-gray-50",
-    icon: "text-indigo-600",
-  },
-  green: {
-    badge: "border-green-200 bg-green-50 text-green-700",
-    text: "text-green-600",
-    alert: "border-gray-100 bg-gray-50",
-    icon: "text-indigo-600",
-  },
-  purple: {
-    badge: "border-purple-200 bg-purple-50 text-purple-700",
-    text: "text-purple-600",
-    alert: "border-gray-100 bg-gray-50",
-    icon: "text-indigo-600",
-  },
-};
+const CLOSED_STATUSES = ["offer", "rejected", "withdrawn"];
 
-const companyConfig = {
-  Datadog: {
-    icon: SiDatadog,
-    background: "bg-white",
-    iconColor: "#632CA6",
-  },
-  Uber: {
-    icon: SiUber,
-    background: "bg-black",
-    iconColor: "#FFFFFF",
-  },
-  Stripe: {
-    icon: SiStripe,
-    background: "bg-white",
-    iconColor: "#635BFF",
-  },
-  Vercel: {
-    icon: SiVercel,
-    background: "bg-white",
-    iconColor: "#000000",
-  },
-  Snowflake: {
-    icon: SiSnowflake,
-    background: "bg-white",
-    iconColor: "#29B5E8",
-  },
-  Microsoft: {
-    background: "bg-white",
-    iconColor: "#000000",
-  },
-};
-
-const scoreRingConfig = {
-  size: 56,
-  radius: 22,
-  background: "#E5E7EB",
-  progress: "#4F46E5",
-  text: "#111827",
-};
-
-const summaryCardConfig = {
-  defaultValueColor: "text-gray-900",
-  urgencyValueColor: "text-red-600",
-};
-
-const cardStyles = {
-  interactive:
-    "overflow-hidden transition-shadow duration-200 hover:shadow-md",
-  booster:
-    "flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-md transition-shadow hover:shadow-lg",
-  buttonPrimary:
-    "inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-indigo-700",
-  buttonSecondary:
-    "rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50",
+const STATUS_STYLES = {
+  red: "border-red-200 bg-red-50 text-red-700",
+  orange: "border-orange-200 bg-orange-50 text-orange-700",
+  blue: "border-blue-200 bg-blue-50 text-blue-700",
+  green: "border-green-200 bg-green-50 text-green-700",
 };
 
 /* =========================================================
-   APPLICATION DATA
+   HELPER FUNCTIONS
 ========================================================= */
 
-const applications = sortApplicationsByScore(mockApplications);
+function getStatusColor(riskStatus) {
+  switch (riskStatus?.toLowerCase()) {
+    case "at risk":
+      return "red";
 
-const totalApplications = applications.length;
+    case "needs attention":
+      return "orange";
 
-const averageAlignmentScore =
-  getAverageAlignmentScore(applications);
+    case "on track":
+      return "green";
 
-const activeOffers = getActiveOffers(applications);
+    case "not applicable":
+      return "blue";
 
-const urgencyLabel = getUrgencyLabel(applications);
+    default:
+      return "blue";
+  }
+}
+
+function getNumericValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatDeadline(application) {
+  const remaining = application.daysRemaining;
+
+  if (
+    remaining !== null &&
+    remaining !== undefined &&
+    remaining !== ""
+  ) {
+    const days = Number(remaining);
+
+    if (Number.isFinite(days)) {
+      if (days < 0) {
+        return `${Math.abs(days)} Days Overdue`;
+      }
+
+      if (days === 0) {
+        return "Due Today";
+      }
+
+      return `${days} Days Left`;
+    }
+  }
+
+  const deadline =
+    application.deadline || application.job_deadline;
+
+  if (!deadline) {
+    return "No Deadline";
+  }
+
+  const date = new Date(deadline);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Deadline Available";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDate(application) {
+  const deadline =
+    application.deadline || application.job_deadline;
+
+  if (!deadline) {
+    return "Deadline not specified";
+  }
+
+  const date = new Date(deadline);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Deadline not specified";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/*
+  Converts backend application data into the format
+  required by the Priority Queue UI.
+
+  Backend ranking order is preserved.
+  No frontend sorting is performed.
+*/
+
+function mapApplication(application, index) {
+  const riskStatus =
+    application.riskStatus || "Status unavailable";
+
+  return {
+    id:
+      application.id ??
+      application.application_id ??
+      null,
+
+    rank: index + 1,
+
+    company:
+      application.company_name || "Company not specified",
+
+    role:
+      application.job_title || "Role not specified",
+
+    score: getNumericValue(application.priority_score),
+
+    match: getNumericValue(application.match_score),
+
+    status: riskStatus,
+
+    statusColor: getStatusColor(riskStatus),
+
+    deadline: formatDeadline(application),
+
+    deadlineDate: formatDate(application),
+
+    description:
+      application.reason ||
+      "No additional application details available.",
+
+    applicationStatus:
+      application.status || "Unknown",
+  };
+}
 
 /* =========================================================
-   PRIORITY BOOSTER DATA
-   Every booster owns its icon, text and badge styling.
+   SCORE RING
 ========================================================= */
 
-const boosters = [
-  {
-    id: "deadline",
-    title: "Deadline < 24 Hours",
-    points: "+30 pts",
-    icon: Clock,
-    color: "text-red-600 bg-red-50",
-    textClass: "text-red-600",
-    pointsClass: "border-red-200 bg-red-100 text-red-600",
-  },
-  {
-    id: "interview",
-    title: "Active Interview Stage",
-    points: "+25 pts",
-    icon: Users,
-    color: "text-indigo-600 bg-indigo-50",
-    textClass: "text-indigo-600",
-    pointsClass: "border-indigo-200 bg-indigo-100 text-indigo-600",
-  },
-  {
-    id: "resume-match",
-    title: "Resume Match > 90%",
-    points: "+20 pts",
-    icon: Target,
-    color: "text-green-600 bg-green-50",
-    textClass: "text-green-600",
-    pointsClass: "border-green-200 bg-green-100 text-green-600",
-  },
-  {
-    id: "referral",
-    title: "Employee Referral",
-    points: "+15 pts",
-    icon: Users,
-    color: "text-purple-600 bg-purple-50",
-    textClass: "text-purple-600",
-    pointsClass: "border-purple-200 bg-purple-100 text-purple-600",
-  },
-];
+function ScoreRing({ score }) {
+  const size = 56;
+  const radius = 22;
+  const center = size / 2;
 
-/* =========================================================
-   SUMMARY CARD DATA
-========================================================= */
+  const circumference = 2 * Math.PI * radius;
 
-const summaryCards = [
-  {
-    id: "top-priority",
-    title: "Top Priority Items",
-    value: `${totalApplications} Applications`,
-    subtitle: "Requires immediate action in < 48 hours",
-    icon: Flame,
-    iconColor: "bg-red-50 text-red-600",
-    footer: (
-      <span>
-        <span className="font-semibold text-gray-800">
-          Top 10 Pipeline
-        </span>
-        <span className="mx-2">•</span>
-        <span className="font-semibold text-red-600">
-          3 Assessments Due
-        </span>
-      </span>
-    ),
-  },
-  {
-    id: "alignment",
-    title: "Average Alignment Score",
-    value: `${averageAlignmentScore}% Match`,
-    subtitle: "Strong alignment with target roles",
-    icon: Target,
-    iconColor: "bg-indigo-50 text-indigo-600",
-    footer: (
-      <span className="inline-flex items-center gap-1 font-semibold text-green-600">
-        <ArrowUpRight size={14} />
-        High match across top opportunities
-      </span>
-    ),
-  },
-  {
-    id: "urgency",
-    title: "Action Urgency Index",
-    value: urgencyLabel,
-    subtitle: "Deadlines and milestones need review",
-    icon: Gauge,
-    iconColor: "bg-orange-50 text-red-600",
-    valueColor: summaryCardConfig.urgencyValueColor,
-    footer: (
-      <span>
-        <span className="font-semibold text-gray-800">
-          {activeOffers} Active {activeOffers === 1 ? "Offer" : "Offers"}
-        </span>
-        <span className="mx-2">•</span>
-        Review today's priorities
-      </span>
-    ),
-  },
-];
+  const numericScore = getNumericValue(score);
 
-/* =========================================================
-   DAILY FOCUS DATA
-========================================================= */
+  const safeScore =
+    numericScore === null
+      ? 0
+      : Math.min(100, Math.max(0, numericScore));
 
-const dailyTasks = [
-  {
-    id: "datadog-task",
-    title: "Complete Datadog CodeSignal",
-    time: "Est. 70 mins",
-  },
-  {
-    id: "uber-task",
-    title: "Finalize Uber application submit",
-    time: "Est. 15 mins",
-  },
-  {
-    id: "stripe-task",
-    title: "Review Stripe system design cheat sheet",
-    time: "Est. 45 mins",
-  },
-];
-
-const dailyFocusConfig = {
-  pendingCount: dailyTasks.length,
-  label: "TODAY",
-  description:
-    "Key targets prioritized for completion before midnight today.",
-  estimatedTime: "2h 10m",
-};
-
-/* =========================================================
-   WEEKLY MOMENTUM DATA
-========================================================= */
-
-const weeklyActivity = [
-  { day: "MON", height: "h-8", active: true },
-  { day: "TUE", height: "h-12", active: true },
-  { day: "WED", height: "h-9", active: true },
-  { day: "THU", height: "h-14", active: true },
-  { day: "FRI", height: "h-10", active: true },
-  { day: "SAT", height: "h-6", active: false },
-  { day: "SUN", height: "h-4", active: false },
-];
-
-const weeklyMomentumConfig = {
-  completedTasks: 14,
-  activityLabel: "Weekly activity",
-  actionLabel: "View Details",
-};
-
-/* =========================================================
-   COMPANY LOGOS
-========================================================= */
-
-function MicrosoftLogo() {
-  const squares = [
-    "bg-[#F25022]",
-    "bg-[#7FBA00]",
-    "bg-[#00A4EF]",
-    "bg-[#FFB900]",
-  ];
+  const progress =
+    circumference * (safeScore / 100);
 
   return (
-    <div
-      className="grid grid-cols-2 gap-[2px]"
-      aria-label="Microsoft logo"
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       role="img"
+      aria-label={
+        numericScore === null
+          ? "Priority score unavailable"
+          : `Priority score ${safeScore}`
+      }
     >
-      {squares.map((color, index) => (
-        <span
-          key={color}
-          className={`h-[10px] w-[10px] ${color}`}
-          aria-hidden="true"
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke="#E5E7EB"
+        strokeWidth="4"
+      />
+
+      {numericScore !== null && (
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke="#4F46E5"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={`${progress} ${circumference}`}
+          transform={`rotate(-90 ${center} ${center})`}
         />
-      ))}
-    </div>
-  );
-}
-
-function CompanyLogo({ company, initials, logo }) {
-  const config = companyConfig[company];
-  const Logo = config?.icon;
-
-  const containerBackground =
-    config?.background || "bg-gray-50";
-
-  return (
-    <div
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-100 ${containerBackground}`}
-      aria-label={`${company} logo`}
-    >
-      {company === "Microsoft" ? (
-        <MicrosoftLogo />
-      ) : Logo ? (
-        <Logo size={24} color={config.iconColor} />
-      ) : (
-        <span
-          className={`text-xl font-bold ${
-            logo?.split(" ").slice(1).join(" ") ||
-            "text-gray-700"
-          }`}
-        >
-          {initials}
-        </span>
       )}
-    </div>
+
+      <text
+        x={center}
+        y={center + 4}
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="700"
+        fill="#111827"
+      >
+        {numericScore === null
+          ? "N/A"
+          : Math.round(safeScore)}
+      </text>
+    </svg>
   );
 }
 
 /* =========================================================
-   SUMMARY CARD COMPONENT
+   SUMMARY CARD
 ========================================================= */
 
 function SummaryCard({
@@ -378,8 +260,7 @@ function SummaryCard({
   subtitle,
   icon: Icon,
   iconColor,
-  valueColor = summaryCardConfig.defaultValueColor,
-  footer,
+  valueColor = "text-gray-900",
 }) {
   return (
     <Card>
@@ -389,9 +270,7 @@ function SummaryCard({
             {title}
           </p>
 
-          <p
-            className={`mt-3 text-2xl font-bold tracking-tight ${valueColor}`}
-          >
+          <p className={`mt-3 text-2xl font-bold ${valueColor}`}>
             {value}
           </p>
 
@@ -404,88 +283,26 @@ function SummaryCard({
           <Icon size={21} />
         </div>
       </div>
-
-      {footer && (
-        <div className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
-          {footer}
-        </div>
-      )}
     </Card>
   );
 }
 
 /* =========================================================
-   SCORE RING COMPONENT
-========================================================= */
-
-function ScoreRing({ score }) {
-  const { size, radius, background, progress: progressColor, text } =
-    scoreRingConfig;
-
-  const center = size / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = circumference * (score / 100);
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      role="img"
-      aria-label={`Score ${score} out of 100`}
-    >
-      <circle
-        cx={center}
-        cy={center}
-        r={radius}
-        fill="none"
-        stroke={background}
-        strokeWidth="4"
-      />
-
-      <circle
-        cx={center}
-        cy={center}
-        r={radius}
-        fill="none"
-        stroke={progressColor}
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeDasharray={`${progress} ${circumference}`}
-        transform={`rotate(-90 ${center} ${center})`}
-      />
-
-      <text
-        x={center}
-        y={center + 4}
-        textAnchor="middle"
-        fontSize="14"
-        fontWeight="700"
-        fill={text}
-      >
-        {score}
-      </text>
-    </svg>
-  );
-}
-
-/* =========================================================
-   APPLICATION CARD COMPONENT
+   APPLICATION CARD
 ========================================================= */
 
 function ApplicationCard({ app }) {
-  const styles =
-    statusStyles[app.statusColor] || statusStyles.blue;
+  const statusStyle =
+    STATUS_STYLES[app.statusColor] || STATUS_STYLES.blue;
 
   return (
-    <Card className={cardStyles.interactive}>
+    <Card className="overflow-hidden transition-shadow hover:shadow-md">
       <div className="flex flex-col gap-4">
+
         <div className="flex items-start gap-3">
-          <CompanyLogo
-            company={app.company}
-            initials={app.initials}
-            logo={app.logo}
-          />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+            <BriefcaseBusiness size={22} />
+          </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -498,28 +315,28 @@ function ApplicationCard({ app }) {
               </h3>
 
               <span
-                className={`rounded-full border px-2 py-1 text-xs font-semibold ${styles.badge}`}
+                className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusStyle}`}
               >
                 {app.status}
               </span>
             </div>
 
             <p className="mt-1 text-sm font-medium text-gray-700">
-              {app.role}{" "}
-              <span className="text-gray-400">•</span>{" "}
-              {app.term}
+              {app.role}
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
               <span className="flex items-center gap-1">
                 <Target size={14} className="text-indigo-500" />
-                {app.match}% Match
+
+                {app.match === null
+                  ? "Match score unavailable"
+                  : `${app.match}% Match`}
               </span>
 
-              <span
-                className={`flex items-center gap-1 font-bold ${styles.text}`}
-              >
+              <span className="flex items-center gap-1">
                 <Clock size={14} />
+
                 {app.deadline}
               </span>
             </div>
@@ -528,29 +345,22 @@ function ApplicationCard({ app }) {
           <div className="flex shrink-0 flex-col items-center">
             <ScoreRing score={app.score} />
 
-            <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+            <span className="mt-1 text-[10px] font-medium uppercase text-gray-400">
               Score /100
             </span>
           </div>
         </div>
 
-        <div className={`rounded-lg border p-3 ${styles.alert}`}>
+        <div className="rounded-lg border border-gray-100 bg-indigo-50/60 p-3">
           <div className="flex items-start gap-2">
-            {app.statusColor === "red" ? (
-              <AlertCircle
-                size={17}
-                className={`mt-0.5 shrink-0 ${styles.icon}`}
-              />
-            ) : (
-              <Info
-                size={17}
-                className={`mt-0.5 shrink-0 ${styles.icon}`}
-              />
-            )}
+            <Info
+              size={17}
+              className="mt-0.5 shrink-0 text-indigo-600"
+            />
 
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-800">
-                {app.title}
+                Application Information
               </p>
 
               <p className="mt-1 text-xs leading-5 text-gray-600">
@@ -560,389 +370,66 @@ function ApplicationCard({ app }) {
               <p className="mt-2 text-[11px] font-medium text-gray-500">
                 <CalendarDays
                   size={12}
-                  className="mr-1 inline-block align-[-2px]"
+                  className="mr-1 inline-block"
                 />
+
                 {app.deadlineDate}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={cardStyles.buttonPrimary}
-          >
-            {app.action}
-            <ArrowRight size={14} />
-          </button>
-
-          <button
-            type="button"
-            className={cardStyles.buttonSecondary}
-          >
-            {app.secondary}
-          </button>
-
-          <span className="ml-auto text-[10px] text-gray-400">
-            ID: {app.id}
-          </span>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/* =========================================================
-   PRIORITY BOOSTERS COMPONENT
-========================================================= */
-
-function PriorityBoosters() {
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-            <Zap size={19} />
-          </div>
-
-          <div>
-            <h2 className="font-bold text-gray-900">
-              Priority Boosters
-            </h2>
-
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-green-600">
-              ACTIVE RULES
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          aria-label="Priority booster settings"
-          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"
-        >
-          <Settings2 size={17} />
-        </button>
-      </div>
-
-      <p className="mt-4 text-sm leading-5 text-gray-500">
-        Weights dynamically added based on application lifecycle
-        triggers:
-      </p>
-
-      <div className="mt-4 space-y-3">
-        {boosters.map((booster) => {
-          const Icon = booster.icon;
-
-          return (
-            <div
-              key={booster.id}
-              className={cardStyles.booster}
-            >
-              <div className={`rounded-lg p-2 ${booster.color}`}>
-                <Icon size={16} />
-              </div>
-
-              <p
-                className={`min-w-0 flex-1 text-xs font-semibold ${booster.textClass}`}
-              >
-                {booster.title}
-              </p>
-
-              <span
-                className={`shrink-0 rounded-md border px-2 py-1 text-xs font-bold shadow-sm ${booster.pointsClass}`}
-              >
-                {booster.points}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-5 border-t border-gray-100 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-semibold text-gray-600">
-            Sensitivity: High (Default)
+          <span className="text-xs text-gray-500">
+            Application Status:{" "}
+            <span className="font-semibold text-gray-700">
+              {app.applicationStatus}
+            </span>
           </span>
 
-          <button
-            type="button"
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-          >
-            Adjust Model
-          </button>
+          {app.id !== null && (
+            <span className="text-[10px] text-gray-400">
+              ID: {app.id}
+            </span>
+          )}
         </div>
+
       </div>
     </Card>
   );
 }
 
 /* =========================================================
-   DAILY FOCUS COMPONENT
+   UNAVAILABLE PANEL
 ========================================================= */
 
-function DailyFocus() {
+function UnavailablePanel({
+  title,
+  description,
+  icon: Icon,
+}) {
   return (
     <Card>
-      <div className="flex items-center gap-2.5">
-        <div className="rounded-lg bg-orange-50 p-2 text-orange-600">
-          <Target size={19} />
+      <div className="flex items-center gap-2">
+        <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
+          <Icon size={19} />
         </div>
 
-        <div>
-          <h2 className="font-bold text-gray-900">
-            Daily Focus
-          </h2>
-
-          <p className="mt-0.5 text-xs text-gray-500">
-            Key targets for today
-          </p>
-        </div>
+        <h2 className="font-bold text-gray-900">
+          {title}
+        </h2>
       </div>
 
-      <div className="mt-4 rounded-lg border border-orange-100 bg-orange-50/60 p-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-gray-800">
-            {dailyFocusConfig.pendingCount} Pending
-          </p>
-
-          <span className="text-[10px] font-semibold text-orange-700">
-            {dailyFocusConfig.label}
-          </span>
-        </div>
+      <div className="mt-4 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4">
+        <p className="text-sm font-medium text-gray-700">
+          Not available yet
+        </p>
 
         <p className="mt-1 text-xs leading-5 text-gray-500">
-          {dailyFocusConfig.description}
-        </p>
-      </div>
-
-      <div className="mt-4 space-y-4">
-        {dailyTasks.map((task, index) => (
-          <div
-            key={task.id}
-            className="flex items-start gap-3"
-          >
-            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 text-[10px] font-semibold text-gray-500">
-              {index + 1}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold leading-5 text-gray-800">
-                {task.title}
-              </p>
-
-              <p className="mt-1 text-[11px] text-gray-400">
-                {task.time}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              aria-label={`Mark ${task.title} complete`}
-              className="rounded-full p-1 text-gray-400 hover:bg-green-50 hover:text-green-600"
-            >
-              <CheckCircle2 size={17} />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4">
-        <div>
-          <p className="text-xs text-gray-500">
-            Estimated time
-          </p>
-
-          <p className="mt-1 text-sm font-bold text-gray-900">
-            {dailyFocusConfig.estimatedTime}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={14} />
-          Add Task
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-/* =========================================================
-   QUEUE VELOCITY COMPONENT
-========================================================= */
-
-function QueueVelocity() {
-  const velocityConfig = {
-    change: "+18%",
-    period: "this week",
-    clearedTasks: 3,
-    message: "Improved from yesterday",
-  };
-
-  return (
-    <Card>
-      <div className="flex items-center gap-2.5">
-        <div className="rounded-lg bg-green-50 p-2 text-green-600">
-          <TrendingUp size={19} />
-        </div>
-
-        <div>
-          <h2 className="font-bold text-gray-900">
-            Queue Velocity
-          </h2>
-
-          <p className="mt-0.5 text-xs text-gray-500">
-            Application activity overview
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-3xl font-bold text-gray-900">
-            {velocityConfig.change}
-          </p>
-
-          <p className="mt-1 text-xs text-gray-500">
-            {velocityConfig.period}
-          </p>
-        </div>
-
-        <div className="text-right">
-          <p className="text-2xl font-bold text-gray-900">
-            {velocityConfig.clearedTasks}
-          </p>
-
-          <p className="mt-1 text-xs text-gray-500">
-            Priority Tasks Cleared
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-lg bg-green-50 px-3 py-2">
-        <p className="text-xs font-semibold text-green-700">
-          <ArrowUpRight size={14} className="mr-1 inline-block" />
-          {velocityConfig.message}
+          {description}
         </p>
       </div>
     </Card>
-  );
-}
-
-/* =========================================================
-   WEEKLY MOMENTUM COMPONENT
-========================================================= */
-
-function WeeklyMomentum() {
-  return (
-    <Card>
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="font-bold text-gray-900">
-            Weekly Momentum
-          </h2>
-
-          <p className="mt-1 text-xs text-gray-500">
-            {weeklyMomentumConfig.completedTasks} tasks completed
-          </p>
-        </div>
-
-        <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-          <Activity size={18} />
-        </span>
-      </div>
-
-      <div className="mt-5 grid grid-cols-7 gap-2">
-        {weeklyActivity.map((item) => (
-          <div
-            key={item.day}
-            className="flex flex-col items-center gap-2"
-          >
-            <div className="flex h-14 w-full items-end justify-center">
-              <div
-                className={`w-full rounded-t-md ${
-                  item.active ? "bg-indigo-500" : "bg-gray-200"
-                } ${item.height}`}
-              />
-            </div>
-
-            <span className="text-[9px] font-semibold text-gray-400">
-              {item.day}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-        <span className="text-xs text-gray-500">
-          {weeklyMomentumConfig.activityLabel}
-        </span>
-
-        <button
-          type="button"
-          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-        >
-          {weeklyMomentumConfig.actionLabel}
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-/* =========================================================
-   PRO TIP COMPONENT
-========================================================= */
-
-function ProTip() {
-  const tip = {
-    heading: "Pro Tip for Datadog OA:",
-    description:
-      "CodeSignal scores can depend heavily on speed in Section 2. Complete questions 1 and 2 efficiently while keeping accuracy high to maximize your score.",
-    reminder:
-      "Prepare early, review the instructions, and reserve time to test your solutions before submitting.",
-  };
-
-  return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-      <div className="flex items-center gap-2.5">
-        <div className="rounded-lg bg-white p-2 text-amber-600 shadow-sm">
-          <BriefcaseBusiness size={18} />
-        </div>
-
-        <div>
-          <h2 className="font-bold text-gray-900">
-            Pro Tip
-          </h2>
-
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
-            YOUR NEXT BEST MOVE
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-4 text-xs font-semibold leading-5 text-gray-800">
-        {tip.heading}
-      </p>
-
-      <p className="mt-2 text-xs leading-5 text-gray-700">
-        {tip.description}
-      </p>
-
-      <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-white/70 p-3">
-        <ShieldCheck
-          size={16}
-          className="mt-0.5 shrink-0 text-amber-700"
-        />
-
-        <p className="text-[11px] leading-5 text-gray-600">
-          {tip.reminder}
-        </p>
-      </div>
-    </div>
   );
 }
 
@@ -951,16 +438,168 @@ function ProTip() {
 ========================================================= */
 
 function PriorityQueue() {
+  const [applications, setApplications] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-const [isLoading, setIsLoading] = useState(false);
-const [error, setError] = useState(null);
+  /* =======================================================
+     FETCH APPLICATIONS
+  ======================================================= */
 
+  const fetchApplications = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-  const activeApplicationCount = applications.length;
+    try {
+      const result = await api.get("/api/applications");
+
+      const backendApplications =
+        result?.data?.applications;
+
+      if (!Array.isArray(backendApplications)) {
+        throw new Error(
+          "Invalid applications response from server."
+        );
+      }
+
+      // Preserve backend ranking order.
+      const mappedApplications =
+        backendApplications.map((application, index) =>
+          mapApplication(application, index)
+        );
+
+      setApplications(mappedApplications);
+
+    } catch (err) {
+      console.error("Priority Queue API Error:", err);
+
+      setError(
+        err.message ||
+        "Unable to load applications. Please try again."
+      );
+
+      setApplications([]);
+
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  /* =======================================================
+     SUMMARY CALCULATIONS
+  ======================================================= */
+
+  const activeApplications = applications.filter(
+    (app) =>
+      !CLOSED_STATUSES.includes(
+        app.applicationStatus?.toLowerCase()
+      )
+  );
+
+  const activeOffers = applications.filter(
+    (app) =>
+      app.applicationStatus?.toLowerCase() === "offer"
+  ).length;
+
+  const urgentApplications = activeApplications.filter(
+    (app) =>
+      ["at risk", "needs attention"].includes(
+        app.status?.toLowerCase()
+      )
+  ).length;
+
+  const scoredApplications = activeApplications.filter(
+    (app) => app.match !== null
+  );
+
+  const averageAlignmentScore =
+    scoredApplications.length > 0
+      ? (
+          scoredApplications.reduce(
+            (total, app) => total + app.match,
+            0
+          ) / scoredApplications.length
+        ).toFixed(1)
+      : "N/A";
+
+  const urgencyLabel =
+    urgentApplications > 0
+      ? "High Attention"
+      : activeApplications.length > 0
+        ? "On Track"
+        : "N/A";
+
+  /* =======================================================
+     SUMMARY CARDS
+  ======================================================= */
+
+  const summaryCards = [
+    {
+      id: "priority",
+      title: "Top Priority Items",
+
+      value: error || isLoading
+        ? "N/A"
+        : `${urgentApplications} Applications`,
+
+      subtitle: error
+        ? "Application data unavailable"
+        : "Applications requiring attention",
+
+      icon: Flame,
+      iconColor: "bg-red-50 text-red-600",
+    },
+
+    {
+      id: "alignment",
+      title: "Average Alignment Score",
+
+      value: error || isLoading
+        ? "N/A"
+        : averageAlignmentScore === "N/A"
+          ? "N/A"
+          : `${averageAlignmentScore}% Match`,
+
+      subtitle: "Average match score of active applications",
+
+      icon: Target,
+      iconColor: "bg-indigo-50 text-indigo-600",
+    },
+
+    {
+      id: "urgency",
+      title: "Action Urgency Index",
+
+      value: error || isLoading
+        ? "N/A"
+        : urgencyLabel,
+
+      subtitle: error
+        ? "Offer information unavailable"
+        : `${activeOffers} Offers in Hand`,
+
+      icon: Gauge,
+      iconColor: "bg-orange-50 text-orange-600",
+
+      valueColor:
+        urgencyLabel === "High Attention"
+          ? "text-red-600"
+          : "text-gray-900",
+    },
+  ];
+
+  /* =======================================================
+     PAGE UI
+  ======================================================= */
 
   return (
     <div className="min-h-screen space-y-6 bg-gray-50 text-gray-800">
-      {/* Page heading */}
+
+      {/* PAGE HEADING */}
 
       <section className="flex flex-col justify-between gap-4 2xl:flex-row 2xl:items-start">
         <div className="min-w-0">
@@ -972,9 +611,30 @@ const [error, setError] = useState(null);
               PRIORITY QUEUE
             </span>
 
-            <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 font-semibold text-green-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              REAL-TIME SYNC
+            <span
+              className={`ml-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${
+                isLoading
+                  ? "bg-yellow-50 text-yellow-700"
+                  : error
+                    ? "bg-red-50 text-red-700"
+                    : "bg-green-50 text-green-700"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isLoading
+                    ? "bg-yellow-500"
+                    : error
+                      ? "bg-red-500"
+                      : "bg-green-500"
+                }`}
+              />
+
+              {isLoading
+                ? "CONNECTING"
+                : error
+                  ? "API UNAVAILABLE"
+                  : "API CONNECTED"}
             </span>
           </div>
 
@@ -983,39 +643,41 @@ const [error, setError] = useState(null);
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-            Algorithmic application ranking based on deadline proximity,
-            skill match score, referral status, and offer probability.
+            Your applications ranked according to their priority,
+            deadline proximity, and match score.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+            onClick={fetchApplications}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw size={15} />
-            Re-run Ranking Algorithm
+            <RefreshCw
+              size={15}
+              className={isLoading ? "animate-spin" : ""}
+            />
+
+            {isLoading
+              ? "Refreshing..."
+              : "Refresh Applications"}
           </button>
 
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+            disabled
+            title="Criteria settings are not available yet"
+            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-400"
           >
             <SlidersHorizontal size={15} />
             Criteria Settings
           </button>
-
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
-          >
-            <Plus size={15} />
-            Quick Add Opportunity
-          </button>
         </div>
       </section>
 
-      {/* Summary cards */}
+      {/* SUMMARY CARDS */}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {summaryCards.map((summary) => (
@@ -1027,50 +689,39 @@ const [error, setError] = useState(null);
             icon={summary.icon}
             iconColor={summary.iconColor}
             valueColor={summary.valueColor}
-            footer={summary.footer}
           />
         ))}
       </section>
 
-      {/* Priority formula */}
+      {/* PRIORITY FORMULA */}
 
       <section className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-white p-2.5 text-indigo-600 shadow-sm">
-              <Zap size={20} />
-            </div>
-
-            <div>
-              <h2 className="font-bold text-gray-900">
-                Priority Formula
-              </h2>
-
-              <p className="mt-1 text-sm leading-6 text-gray-700">
-                Score = (Deadline × 35%) + (Skill Match × 30%) +
-                (Milestone × 20%) + (Velocity × 15%)
-              </p>
-
-              <p className="mt-1 text-xs text-gray-500">
-                Calculated hourly using CareerTrack ML weights
-              </p>
-            </div>
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-white p-2.5 text-indigo-600 shadow-sm">
+            <Zap size={20} />
           </div>
 
-          <button
-            type="button"
-            className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:self-center"
-          >
-            <Info size={15} />
-            How it works
-          </button>
+          <div>
+            <h2 className="font-bold text-gray-900">
+              Priority Formula
+            </h2>
+
+            <p className="mt-1 text-sm leading-6 text-gray-700">
+              Application ranking is provided by the backend.
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              The frontend preserves the ranking order received from the API.
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* Main layout */}
+      {/* MAIN CONTENT */}
 
       <section className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        {/* Application queue */}
+
+        {/* APPLICATION QUEUE */}
 
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -1081,75 +732,150 @@ const [error, setError] = useState(null);
                 </h2>
 
                 <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                  {activeApplicationCount} Active
+                  {isLoading
+                    ? "Loading..."
+                    : error
+                      ? "Unavailable"
+                      : `${activeApplications.length} Active`}
                 </span>
               </div>
 
               <p className="mt-1 text-sm text-gray-500">
-                Your opportunities ranked by algorithmic impact.
+                Applications in the order returned by the backend.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">
-                Sort:
-              </span>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              Sort: Backend Ranking
+              <ArrowDown size={13} />
+            </div>
+          </div>
+
+          {/* LOADING */}
+
+          {isLoading && (
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+              <RefreshCw
+                size={24}
+                className="mx-auto animate-spin text-indigo-600"
+              />
+
+              <p className="mt-3 text-sm text-gray-600">
+                Loading applications...
+              </p>
+            </div>
+          )}
+
+          {/* ERROR */}
+
+          {!isLoading && error && (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 p-6 text-center"
+            >
+              <AlertCircle
+                size={28}
+                className="mx-auto text-red-600"
+              />
+
+              <p className="mt-3 font-semibold text-red-700">
+                Unable to load applications
+              </p>
+
+              <p className="mt-2 text-sm text-red-600">
+                {error}
+              </p>
 
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700"
+                onClick={fetchApplications}
+                className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
               >
-                Algorithmic Impact
-                <ArrowDown size={13} />
+                Try Again
               </button>
             </div>
-          </div>
-{isLoading ? (
-  <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-    <p className="text-gray-600">Loading applications...</p>
-  </div>
-) : error ? (
-  <div
-    role="alert"
-    className="rounded-xl border border-red-200 bg-red-50 p-8 text-center"
-  >
-    <p className="font-medium text-red-700">{error}</p>
-  </div>
-) : applications.length === 0 ? (
-  <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-    <p className="font-medium text-gray-800">No applications found</p>
-    <p className="mt-2 text-sm text-gray-500">
-      Your applications will appear here when available.
-    </p>
-  </div>
-) : (
-  applications.map((app) => (
-    <ApplicationCard key={app.id} app={app} />
-  ))
-)}
+          )}
 
+          {/* EMPTY STATE */}
 
-          <button
-            type="button"
-            className="w-full rounded-lg border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-          >
-            View All Applications
-            <ArrowRight size={15} className="ml-2 inline-block" />
-          </button>
+          {!isLoading &&
+            !error &&
+            activeApplications.length === 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                <BriefcaseBusiness
+                  size={30}
+                  className="mx-auto text-gray-400"
+                />
+
+                <h3 className="mt-3 font-semibold text-gray-800">
+                  No active applications found
+                </h3>
+
+                <p className="mt-2 text-sm text-gray-500">
+                  Your active applications will appear here when available.
+                </p>
+              </div>
+            )}
+
+          {/* APPLICATION LIST */}
+
+         {!isLoading &&
+  !error &&
+  activeApplications.map((app, index) => (
+    <ApplicationCard
+      key={app.id ?? index}
+      app={{
+        ...app,
+        rank: index + 1,
+      }}
+    />
+  ))}
         </div>
 
-        {/* Supporting panels */}
+        {/* RIGHT SIDEBAR */}
 
         <aside className="min-w-0 space-y-5 lg:col-span-1">
-          <PriorityBoosters />
+          <UnavailablePanel
+            title="Priority Boosters"
+            description="Priority rules and score adjustments are not currently available through the applications API."
+            icon={Zap}
+          />
 
-          <DailyFocus />
+          <UnavailablePanel
+            title="Daily Focus"
+            description="Daily task information is not currently available through the connected API."
+            icon={Target}
+          />
 
-          <QueueVelocity />
+          <UnavailablePanel
+            title="Queue Velocity"
+            description="Application activity and task completion statistics are not currently available."
+            icon={TrendingUp}
+          />
 
-          <WeeklyMomentum />
+          <UnavailablePanel
+            title="Weekly Momentum"
+            description="Weekly application activity data is not currently available."
+            icon={Activity}
+          />
 
-          <ProTip />
+          <Card>
+            <div className="flex items-center gap-2">
+              <ShieldCheck
+                size={18}
+                className="text-indigo-600"
+              />
+
+              <h2 className="font-bold text-gray-900">
+                Application Insights
+              </h2>
+            </div>
+
+            <p className="mt-3 text-xs leading-5 text-gray-600">
+              Application details and ranking information are displayed
+              using the data received from your account.
+            </p>
+          </Card>
         </aside>
       </section>
     </div>
