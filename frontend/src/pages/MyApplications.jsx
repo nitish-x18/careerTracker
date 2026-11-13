@@ -23,7 +23,10 @@ import {
   ArrowRight,
   X,
 } from "lucide-react";
-import { applicationsData } from "../features/my-applications/data/applicationsData";
+import {
+  applicationsData,
+  applicationConfig,
+} from "../features/my-applications/data/applicationsData";
 
 
 const stageStyles = {
@@ -48,10 +51,16 @@ const deadlineStyles = {
   scheduled: "bg-blue-100 text-indigo-800",
 };
 
-
+const {
+  types: applicationTypes,
+  priorities: applicationPriorities,
+  stages: applicationStages,
+  defaults: applicationDefaults,
+  metrics: applicationMetrics,
+} = applicationConfig;
 
 function getDeadlineInfo(deadline) {
-  if (!deadline || deadline === "Rolling Admissions") {
+  if (!deadline || deadline === applicationDefaults.deadline) {
     return {
       label: deadline || "No deadline set",
       tone: "scheduled",
@@ -104,7 +113,7 @@ function getCriticalApplications(applications) {
 
     if (
       app.archived ||
-      stage === "Rejected" ||
+      stage === applicationStages[8] ||
       stage.startsWith("Offer")
     ) {
       return false;
@@ -168,9 +177,9 @@ function getStageAction(stage) {
     return { action: "Review Offer", actionIcon: "offer" };
   }
 
-  if (currentStage.includes("rejected")) {
-    return { action: "View Details", actionIcon: "eye" };
-  }
+  if (currentStage === applicationStages[8]) {
+  return { action: "View Details", actionIcon: "eye" };
+}
 
   if (
     currentStage.includes("applied") ||
@@ -293,12 +302,12 @@ const [formData, setFormData] = useState({
   company: "",
   role: "",
   location: "",
-  type: "Internship",
+  type: applicationDefaults.type,
   appliedDate: "",
   deadline: "",
   match: 0,
-  priority: "Medium",
-  stage: "Applied - In Review",
+  priority: applicationDefaults.priority,
+  stage: applicationDefaults.stage,
 });
 
       const [applications, setApplications] = useState(() => {
@@ -321,13 +330,15 @@ const [formData, setFormData] = useState({
     return applicationsData;
   });
 
-  
+
 const activeApplications = applications.filter(
-  (app) => !app.archived && app.stage !== "Rejected"
+  (app) => !app.archived && app.stage !== applicationStages[8]
 );
 
 const submittedApplications = activeApplications.filter(
-  (app) => app.appliedDate && app.appliedDate !== "Not submitted"
+  (app) =>
+    app.appliedDate &&
+    app.appliedDate !== applicationDefaults.appliedDate
 );
 
 const interviewApplications = activeApplications.filter((app) =>
@@ -349,7 +360,7 @@ const interviewRate =
     const matchedApplications = applications.filter(
   (app) =>
     !app.archived &&
-    app.stage !== "Rejected" &&
+    app.stage !== applicationStages[8] &&
     typeof app.match === "number" &&
     Number.isFinite(app.match) &&
     app.match >= 0 &&
@@ -385,14 +396,14 @@ const averageMatch =
 
   return [
     ["All", applications.length],
-    ["Drafts", countStage(["Draft Application"])],
-    ["Applied", countStage(["Applied - In Review"])],
-    ["Online Assessment", countStage(["Assessment Due"])],
+    ["Drafts", countStage([applicationStages[0]])],
+    ["Applied", countStage([applicationStages[1]])],
+    ["Online Assessment", countStage([applicationStages[2]])],
     [
       "Technical Interview",
-      countStage(["Technical Screen", "Technical Round 2"]),
+      countStage([applicationStages[4], applicationStages[5]])
     ],
-    ["Final Round", countStage(["Final Round"])],
+    ["Final Round", countStage([applicationStages[6]])],
     [
       "Offers",
       applications.filter((app) => app.stage.startsWith("Offer")).length,
@@ -458,22 +469,24 @@ useEffect(() => {
 
      const matchesPriority =
   priorityFilter === "All Priorities" ||
-  (priorityFilter === "High Priority" && app.priority === "High") ||
-  (priorityFilter === app.priority);
+  (priorityFilter === "High" && app.priority === "High Priority") ||
+  priorityFilter === app.priority;
 
-      
+
 const matchesTab =
   selectedTab === "Archived"
     ? app.archived === true
     : !app.archived &&
       (
         selectedTab === "All" ||
-        (selectedTab === "Drafts" && app.stage === "Draft Application") ||
-        (selectedTab === "Applied" && app.stage === "Applied - In Review") ||
-        (selectedTab === "Online Assessment" && app.stage === "Assessment Due") ||
+        (selectedTab === "Drafts" && app.stage === applicationStages[0]) ||
+        (selectedTab === "Applied" && app.stage === applicationStages[1]) ||
+        (selectedTab === "Online Assessment" &&
+          app.stage === applicationStages[2]) ||
         (selectedTab === "Technical Interview" &&
-          ["Technical Screen", "Technical Round 2"].includes(app.stage)) ||
-        (selectedTab === "Final Round" && app.stage === "Final Round") ||
+          [applicationStages[4], applicationStages[5]].includes(app.stage)) ||
+        (selectedTab === "Final Round" &&
+          app.stage === applicationStages[6]) ||
         (selectedTab === "Offers" && app.stage.startsWith("Offer"))
       );
 
@@ -481,7 +494,7 @@ const matchesTab =
       return matchesSearch && matchesType && matchesPriority && matchesTab;
     });
 
-   
+
 if (sortBy === "Company (A–Z)") {
   result = [...result].sort((a, b) =>
     a.company.localeCompare(b.company)
@@ -493,7 +506,7 @@ if (sortBy === "Company (A–Z)") {
 } else if (sortBy === "Deadline (Soonest)") {
   result = [...result].sort((a, b) => {
     const getDeadlineDate = (deadline) => {
-      if (!deadline || deadline === "Rolling Admissions") {
+      if (!deadline || deadline === applicationDefaults.deadline) {
         return Infinity;
       }
 
@@ -512,32 +525,32 @@ if (sortBy === "Company (A–Z)") {
     return result;
   }, [search, selectedTab, typeFilter, priorityFilter, sortBy, applications]);
 
-  
-  const applicationStats = useMemo(() => {
-    const awaitingReview = applications.filter(
-      (app) => app.stage === "Applied - In Review"
-    ).length;
 
-    const activeRounds = applications.filter((app) =>
-      [
-        "Technical Screen",
-        "Technical Round 2",
-        "Assessment Due",
-        "Final Round",
-        "Take-home Reviewing",
-      ].includes(app.stage)
-    ).length;
+ const applicationStats = useMemo(() => {
+  const awaitingReview = applications.filter(
+    (app) => app.stage === applicationStages[1]
+  ).length;
 
-    const offers = applications.filter((app) =>
-      app.stage.startsWith("Offer")
-    ).length;
+  const activeRounds = applications.filter((app) =>
+    [
+      applicationStages[4],
+      applicationStages[5],
+      applicationStages[2],
+      applicationStages[6],
+      applicationStages[3],
+    ].includes(app.stage)
+  ).length;
 
-    return {
-      awaitingReview,
-      activeRounds,
-      offers,
-    };
-  }, [applications]);
+  const offers = applications.filter((app) =>
+    app.stage.startsWith("Offer")
+  ).length;
+
+  return {
+    awaitingReview,
+    activeRounds,
+    offers,
+  };
+}, [applications, applicationStages]);
 
 
   const totalApplications = filteredRows.length;
@@ -617,24 +630,6 @@ const visibleRows = filteredRows.slice(
     URL.revokeObjectURL(url);
   }
 
-  function updateActionApplication(updates) {
-  const currentApp = actionDetails?.app;
-  if (!currentApp) return;
-
-  const updatedApp = { ...currentApp, ...updates };
-
-  setApplications((previous) =>
-    previous.map((app) =>
-      app.id === currentApp.id ? updatedApp : app
-    )
-  );
-
-  setActionDetails((previous) =>
-    previous
-      ? { ...previous, app: updatedApp }
-      : previous
-  );
-}
 
 function handleAction(app) {
   const action = (app.action || "").trim().toLowerCase();
@@ -698,7 +693,7 @@ function updateActionApplication(updates) {
   );
 }
 
-  
+
 const handleApplicationSubmit = (event) => {
   event.preventDefault();
 
@@ -710,7 +705,7 @@ const handleApplicationSubmit = (event) => {
     return;
   }
 
-  
+
 if (formData.deadline && formData.deadline < todayDate) {
   setNotice("Deadline cannot be in the past. Please choose today or a future date.");
   return;
@@ -722,7 +717,7 @@ if (formData.appliedDate && formData.appliedDate > todayDate) {
 }
 
   if (editingApplication) {
-    
+
 setApplications((previous) =>
   previous.map((app) =>
     app.id === editingApplication.id
@@ -732,8 +727,10 @@ setApplications((previous) =>
           company,
           role,
          match: app.match ?? null,
-          appliedDate: formData.appliedDate || "Not submitted",
-          deadline: formData.deadline || app.deadline || "Rolling Admissions",
+          appliedDate:
+  formData.appliedDate || applicationDefaults.appliedDate,
+deadline:
+  formData.deadline || app.deadline || applicationDefaults.deadline,
           deadlineTone: getDeadlineInfo(
   formData.deadline || app.deadline
 ).tone,
@@ -762,8 +759,9 @@ stageDot: app.stageDot || "bg-slate-500",
         .slice(0, 2)
         .toUpperCase(),
       logo: "bg-indigo-100 text-indigo-700",
-      appliedDate: formData.appliedDate || "Not submitted",
-      appliedAgo: "Just added",
+      appliedDate:
+  formData.appliedDate || applicationDefaults.appliedDate,
+      appliedAgo: applicationDefaults.appliedAgo,
       stageDot: "bg-slate-500",
       deadlineTone: getDeadlineInfo(formData.deadline).tone,
 ...getStageAction(formData.stage),
@@ -779,16 +777,16 @@ stageDot: app.stageDot || "bg-slate-500",
   setShowApplicationForm(false);
   setEditingApplication(null);
   setFormData({
-    company: "",
-    role: "",
-    location: "",
-    type: "Internship",
-    appliedDate: "",
-    deadline: "",
-    match: 0,
-    priority: "Medium",
-    stage: "Applied - In Review",
-  });
+  company: "",
+  role: "",
+  location: "",
+  type: applicationDefaults.type,
+  appliedDate: "",
+  deadline: "",
+  match: 0,
+  priority: applicationDefaults.priority,
+  stage: applicationDefaults.stage,
+});
 
   setSelectedRows([]);
   setPage(1);
@@ -807,7 +805,7 @@ const handleEditApplication = (app) => {
     company: app.company || "",
     role: app.role || "",
     location: app.location || "",
-    type: app.type || "Internship",
+    type: app.type || applicationDefaults.type,
     appliedDate: /^\d{4}-\d{2}-\d{2}$/.test(app.appliedDate || "")
       ? app.appliedDate
       : "",
@@ -815,8 +813,8 @@ const handleEditApplication = (app) => {
       ? app.deadline
       : "",
     match: app.match ?? 0,
-    priority: app.priority || "Medium",
-    stage: app.stage || "Applied - In Review",
+    priority: app.priority || applicationDefaults.priority,
+    stage: app.stage || applicationDefaults.stage,
   });
 
   setNotice("");
@@ -889,7 +887,7 @@ const handleDeleteApplication = (app) => {
                 Bulk Actions
                 <ChevronDown size={14} />
               </button>
-              
+
 {showBulkMenu && (
   <div className="absolute right-0 top-11 z-30 w-48 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
     <p className="px-2 py-1.5 text-xs text-slate-500">
@@ -904,9 +902,9 @@ const handleDeleteApplication = (app) => {
             selectedRows.includes(app.id) && !app.archived
               ? {
                   ...app,
-                  stage: "Applied - In Review",
+                  stage: applicationStages[1],
                   stageDot: "bg-blue-500",
-                  ...getStageAction("Applied - In Review"),
+                  ...getStageAction(applicationStages[1]),
                 }
               : app
           )
@@ -920,7 +918,7 @@ const handleDeleteApplication = (app) => {
       Mark as Applied
     </button>
 
-   
+
 <button
   type="button"
   onClick={() => {
@@ -1011,12 +1009,12 @@ const handleDeleteApplication = (app) => {
     company: "",
     role: "",
     location: "",
-    type: "Internship",
+    type: applicationDefaults.type,
     appliedDate: "",
     deadline: "",
     match: 0,
-    priority: "Medium",
-    stage: "Applied - In Review",
+    priority: applicationDefaults.priority,
+    stage: applicationDefaults.stage,
   });
   setShowApplicationForm(true);
 }}
@@ -1036,9 +1034,9 @@ const handleDeleteApplication = (app) => {
             </button>
           </div>
         )}
-        
+
 {actionDetails && (
- 
+
 <div
   className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-2 sm:p-4"
   onClick={() => setActionDetails(null)}
@@ -1103,7 +1101,7 @@ const handleDeleteApplication = (app) => {
         <div>
           <p className="text-xs text-slate-500">Priority</p>
           <p className="mt-1 text-sm font-semibold text-slate-800">
-            {actionDetails.app.priority || "Medium"}
+            {actionDetails.app.priority || applicationDefaults.priority}
           </p>
         </div>
       </div>
@@ -1150,22 +1148,13 @@ const handleDeleteApplication = (app) => {
               Application stage
             </label>
             <select
-              value={actionDetails.app.stage || "Applied - In Review"}
+              value={actionDetails.app.stage || applicationDefaults.stage}
               onChange={(event) =>
                 updateActionApplication({ stage: event.target.value })
               }
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
-              {[
-                "Draft Application",
-                "Applied - In Review",
-                "Assessment Due",
-                "Technical Screen",
-                "Technical Round 2",
-                "Take-home Reviewing",
-                "Offer Received",
-                "Rejected",
-              ].map((stage) => (
+             {applicationStages.map((stage) => (
                 <option key={stage} value={stage}>
                   {stage}
                 </option>
@@ -1373,12 +1362,12 @@ const handleDeleteApplication = (app) => {
             iconStyle="bg-sky-100 text-sky-700"
           />
           <Metric
-            title="Avg. Response Time"
-            value="4.2"
-            suffix="days"
-            icon={Clock3}
-            iconStyle="bg-slate-100 text-slate-600"
-          />
+  title="Avg. Response Time"
+  value={applicationMetrics.averageResponseTime}
+  suffix={applicationMetrics.averageResponseTimeUnit}
+  icon={Clock3}
+  iconStyle="bg-slate-100 text-slate-600"
+/>
         </div>
 
         {/* Search and filters */}
@@ -1402,19 +1391,11 @@ const handleDeleteApplication = (app) => {
             </label>
 
             {[
-             
+
 {
   value: typeFilter,
   setter: setTypeFilter,
-  options: [
-    "All Types",
-    "Internship",
-    "Full-time",
-    "Part-time",
-    "Contract",
-    "Co-op",
-    "Temporary",
-  ],
+  options: ["All Types", ...applicationTypes],
 },
 
               {
@@ -1538,7 +1519,7 @@ const handleDeleteApplication = (app) => {
                       <Pill className="bg-blue-50 text-slate-700">{app.type}</Pill>
                     </td>
                     <td className="px-3">
-                      {app.appliedDate === "Not submitted" ? (
+                      {app.appliedDate === applicationDefaults.appliedDate ? (
                         <>
                           <p className="text-sm italic text-slate-500">Not submitted</p>
                           <p className="mt-1 text-xs text-slate-400">{app.appliedAgo}</p>
@@ -1550,7 +1531,7 @@ const handleDeleteApplication = (app) => {
                         </>
                       )}
                     </td>
-                    
+
 <td className="px-3">
   {(() => {
     const deadlineInfo = getDeadlineInfo(app.deadline);
@@ -1590,7 +1571,7 @@ const handleDeleteApplication = (app) => {
                         {app.stage}
                       </Pill>
                     </td>
-                    
+
 <td className="px-2">
   <div className="flex items-center justify-end gap-1">
     <button
@@ -1610,7 +1591,7 @@ const handleDeleteApplication = (app) => {
       {app.action}
     </button>
 
-    
+
 <div className="relative shrink-0">
   <button
     type="button"
@@ -1655,7 +1636,7 @@ const handleDeleteApplication = (app) => {
         Edit
       </button>
 
-      
+
 <button
   type="button"
   onClick={() => {
@@ -1773,7 +1754,7 @@ const handleDeleteApplication = (app) => {
 
         {/* Bottom insight cards */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-         
+
 
 <InsightCard
   title="Critical Deadlines"
@@ -1917,7 +1898,7 @@ const handleDeleteApplication = (app) => {
   window.location.href = "/timeline";
 }}
           >
-            
+
 <h3 className="text-lg font-bold text-slate-900">
   {interviewRate}% Interview Rate
 </h3>
@@ -1958,7 +1939,7 @@ const handleDeleteApplication = (app) => {
 
         {/* Add/Edit Application Modal */}
         {showApplicationForm && (
-          
+
 <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-2 sm:p-4 sm:items-center">
   <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 pb-6 sm:p-6 sm:pb-8 shadow-2xl">
     <div className="mb-6 flex items-center justify-between">
@@ -2025,18 +2006,17 @@ const handleDeleteApplication = (app) => {
           <label className="mb-1 block text-sm font-medium text-slate-700">
             Job Type
           </label>
-          
+
 <select
   value={formData.type}
   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
 >
-  <option value="Internship">Internship</option>
-  <option value="Full-time">Full-time</option>
-  <option value="Part-time">Part-time</option>
-  <option value="Contract">Contract</option>
-  <option value="Co-op">Co-op</option>
-  <option value="Temporary">Temporary</option>
+  {applicationTypes.map((type) => (
+  <option key={type} value={type}>
+    {type}
+  </option>
+))}
 </select>
 
         </div>
@@ -2092,14 +2072,15 @@ const handleDeleteApplication = (app) => {
             onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
           >
-            <option>Urgent</option>
-            <option>High Priority</option>
-            <option>Medium</option>
-            <option>Low</option>
+            {applicationPriorities.map((priority) => (
+  <option key={priority} value={priority}>
+    {priority}
+  </option>
+))}
           </select>
         </div>
 
-       
+
 
 <div className="sm:col-span-2">
   <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -2121,37 +2102,27 @@ const handleDeleteApplication = (app) => {
     />
   </button>
 
-  {showStageOptions && (
-    <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-      {[
-        "Draft Application",
-        "Applied - In Review",
-        "Assessment Due",
-        "Take-home Reviewing",
-        "Technical Screen",
-        "Technical Round 2",
-        "Final Round",
-        "Offer Received",
-        "Rejected",
-      ].map((stage) => (
-        <button
-          key={stage}
-          type="button"
-          onClick={() => {
-            setFormData((previous) => ({ ...previous, stage }));
-            setShowStageOptions(false);
-          }}
-          className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-indigo-50 ${
-            formData.stage === stage
-              ? "bg-indigo-50 font-semibold text-indigo-700"
-              : "text-slate-700"
-          }`}
-        >
-          {stage}
-        </button>
-      ))}
-    </div>
-  )}
+ {showStageOptions && (
+  <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+    {applicationStages.map((stage) => (
+      <button
+        key={stage}
+        type="button"
+        onClick={() => {
+          setFormData((previous) => ({ ...previous, stage }));
+          setShowStageOptions(false);
+        }}
+        className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-indigo-50 ${
+          formData.stage === stage
+            ? "bg-indigo-50 font-semibold text-indigo-700"
+            : "text-slate-700"
+        }`}
+      >
+        {stage}
+      </button>
+    ))}
+  </div>
+)}
 </div>
 
       </div>
