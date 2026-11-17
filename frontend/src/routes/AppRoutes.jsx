@@ -12,6 +12,7 @@ import PriorityQueue from "../pages/PriorityQueue";
 import ResumeMatch from "../pages/ResumeMatch";
 import EligibilityChecker from "../pages/EligibilityChecker";
 import Profile from "../pages/Profile";
+import Timeline from "../pages/Timeline";
 
 function AppRoutes() {
   return (
@@ -89,13 +90,13 @@ function AppRoutes() {
         
         {/* Application Timeline */}
         <Route
-          path="/timeline"
-          element={
-            <MainLayout>
-              <h1 className="text-3xl font-bold">Timeline</h1>
-            </MainLayout>
-          }
-        />
+  path="/timeline"
+  element={
+    <MainLayout>
+      <Timeline />
+    </MainLayout>
+  }
+/>
 
         {/* Settings */}
         <Route
