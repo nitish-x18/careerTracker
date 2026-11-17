@@ -1,4 +1,5 @@
-import {db} from "../config/db.js";
+
+import { db } from "../config/db.js";
 
 const Application = {
     async create(data) {
@@ -57,6 +58,7 @@ const Application = {
             `SELECT
                 a.*,
                 j.title AS job_title,
+                j.deadline AS job_deadline,
                 c.name AS company_name
              FROM applications a
              LEFT JOIN jobs j ON a.job_id = j.id
@@ -76,7 +78,9 @@ const Application = {
                  priority_level = ?,
                  notes = ?,
                  priority_score = ?,
-                 match_score = ?
+                 match_score = ?,
+                 applied_date = ?,
+                 deadline = ?
              WHERE id = ? AND user_id = ?`,
             [
                 data.status,
@@ -84,6 +88,8 @@ const Application = {
                 data.notes,
                 data.priority_score,
                 data.match_score,
+                data.applied_date,
+                data.deadline,
                 id,
                 user_id
             ]

@@ -10,6 +10,18 @@ VALUES (
     'email'
 );
 
+-- Sample user profile (needed for eligibility matching: degree, major, grad_year)
+INSERT INTO user_profiles (user_id, university, degree, major, cgpa, grad_year, work_auth)
+VALUES (
+    '11111111-1111-4111-8111-111111111111',
+    'Test University',
+    'B.Tech',
+    'Computer Science',
+    8.50,
+    2027,
+    'Authorized to work'
+);
+
 -- Sample company
 INSERT INTO companies (id, name, location)
 VALUES (
@@ -18,10 +30,12 @@ VALUES (
     'India'
 );
 
--- Sample job
+-- Sample job (with eligibility requirements)
 INSERT INTO jobs (
     id, company_id, title, type, season, location,
-    pay, deadline, min_cgpa, work_auth_req, source_url
+    pay, deadline, min_cgpa, work_auth_req,
+    required_degree, required_major, min_grad_year, max_grad_year,
+    source_url
 )
 VALUES (
     '33333333-3333-4333-8333-333333333333',
@@ -34,6 +48,10 @@ VALUES (
     '2027-03-31',
     7.00,
     'Authorized to work',
+    'B.Tech',
+    'Computer Science',
+    2026,
+    2027,
     'https://example.com/jobs'
 );
 
@@ -108,3 +126,13 @@ VALUES (
     '["Python", "SQL", "Machine Learning"]',
     1
 );
+
+-- Check: the test user should match the sample job (expect 1 row)
+SELECT j.title, j.required_degree, j.required_major, j.min_grad_year, j.max_grad_year
+FROM user_profiles p
+JOIN jobs j
+  ON (j.required_degree IS NULL OR j.required_degree = p.degree)
+ AND (j.required_major  IS NULL OR j.required_major  = p.major)
+ AND (j.min_grad_year   IS NULL OR p.grad_year >= j.min_grad_year)
+ AND (j.max_grad_year   IS NULL OR p.grad_year <= j.max_grad_year)
+WHERE p.user_id = '11111111-1111-4111-8111-111111111111';

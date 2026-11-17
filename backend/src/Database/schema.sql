@@ -1,5 +1,6 @@
 -- CareerTrack Database Schema
 -- Database: careerTracker_db
+-- NOTE: constraints and indexes are in constraints_indexes.sql (run it after this file).
 
 CREATE DATABASE IF NOT EXISTS careerTracker_db;
 USE careerTracker_db;
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 -- 5. JOBS
+-- required_degree / required_major / min_grad_year / max_grad_year = eligibility rules (NULL = no requirement)
 CREATE TABLE IF NOT EXISTS jobs (
     id CHAR(36) PRIMARY KEY,
     company_id CHAR(36),
@@ -67,6 +69,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     deadline DATE,
     min_cgpa DECIMAL(3,2),
     work_auth_req VARCHAR(80),
+    required_degree VARCHAR(100),
+    required_major VARCHAR(100),
+    min_grad_year YEAR,
+    max_grad_year YEAR,
     source_url VARCHAR(500),
     CONSTRAINT fk_jobs_company
         FOREIGN KEY (company_id) REFERENCES companies(id)

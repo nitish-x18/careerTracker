@@ -1,4 +1,6 @@
-import UserPreference from "../models/userPrefrence.model.js";
+
+import UserPreference from "../models/userPreference.model.js";
+
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 

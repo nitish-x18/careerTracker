@@ -27,8 +27,9 @@ const connectDB = async () => {
 
         console.log("TiDB Cloud Database Connected");
         console.log("Connected database:", rows[0].database_name);
+
     } catch (error) {
-        console.error("Database Connection Failed:", error.message);
+        console.error("Database Connection Failed:", error);
         throw error;
     }
 };
