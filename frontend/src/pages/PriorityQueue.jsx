@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -28,34 +29,23 @@ import { api } from "../services/api";
 const CLOSED_STATUSES = ["offer", "rejected", "withdrawn"];
 
 const STATUS_STYLES = {
-  red: "border-red-200 bg-red-50 text-red-700",
-  orange: "border-orange-200 bg-orange-50 text-orange-700",
-  blue: "border-blue-200 bg-blue-50 text-blue-700",
-  green: "border-green-200 bg-green-50 text-green-700",
+  saved: "border-gray-200 bg-gray-50 text-gray-700",
+  applied: "border-blue-200 bg-blue-50 text-blue-700",
+  interview: "border-orange-200 bg-orange-50 text-orange-700",
+  offer: "border-green-200 bg-green-50 text-green-700",
+  rejected: "border-red-200 bg-red-50 text-red-700",
+  withdrawn: "border-gray-200 bg-gray-50 text-gray-600",
+};
+
+const PRIORITY_STYLES = {
+  high: "border-red-200 bg-red-50 text-red-700",
+  medium: "border-orange-200 bg-orange-50 text-orange-700",
+  low: "border-green-200 bg-green-50 text-green-700",
 };
 
 /* =========================================================
    HELPER FUNCTIONS
 ========================================================= */
-
-function getStatusColor(riskStatus) {
-  switch (riskStatus?.toLowerCase()) {
-    case "at risk":
-      return "red";
-
-    case "needs attention":
-      return "orange";
-
-    case "on track":
-      return "green";
-
-    case "not applicable":
-      return "blue";
-
-    default:
-      return "blue";
-  }
-}
 
 function getNumericValue(value) {
   if (value === null || value === undefined || value === "") {
@@ -67,62 +57,70 @@ function getNumericValue(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function getApiApplications(response) {
+  return (
+    response?.data?.applications ??
+    response?.applications ??
+    response?.data?.data?.applications ??
+    null
+  );
+}
+
+function formatStatus(status) {
+  if (!status) return "Unknown";
+
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function formatPriority(priority) {
+  if (!priority) return "Not specified";
+
+  return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+function getDateValue(dateString) {
+  if (!dateString) return null;
+
+  const date = new Date(`${dateString}`.slice(0, 10) + "T00:00:00");
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatDeadline(application) {
-  const remaining = application.daysRemaining;
+  const deadline = application.deadline || application.job_deadline;
 
-  if (
-    remaining !== null &&
-    remaining !== undefined &&
-    remaining !== ""
-  ) {
-    const days = Number(remaining);
+  if (!deadline) return "No Deadline";
 
-    if (Number.isFinite(days)) {
-      if (days < 0) {
-        return `${Math.abs(days)} Days Overdue`;
-      }
+  const date = getDateValue(deadline);
 
-      if (days === 0) {
-        return "Due Today";
-      }
+  if (!date) return "Deadline unavailable";
 
-      return `${days} Days Left`;
-    }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const difference = Math.ceil(
+    (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (difference < 0) {
+    return `${Math.abs(difference)} Days Overdue`;
   }
 
-  const deadline =
-    application.deadline || application.job_deadline;
-
-  if (!deadline) {
-    return "No Deadline";
+  if (difference === 0) {
+    return "Due Today";
   }
 
-  const date = new Date(deadline);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Deadline Available";
-  }
-
-  return date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return `${difference} Days Left`;
 }
 
 function formatDate(application) {
-  const deadline =
-    application.deadline || application.job_deadline;
+  const deadline = application.deadline || application.job_deadline;
 
-  if (!deadline) {
-    return "Deadline not specified";
-  }
+  if (!deadline) return "Deadline not specified";
 
-  const date = new Date(deadline);
+  const date = getDateValue(deadline);
 
-  if (Number.isNaN(date.getTime())) {
-    return "Deadline not specified";
-  }
+  if (!date) return "Deadline not specified";
 
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -132,49 +130,58 @@ function formatDate(application) {
 }
 
 /*
-  Converts backend application data into the format
-  required by the Priority Queue UI.
+  Backend application data mapping.
 
-  Backend ranking order is preserved.
-  No frontend sorting is performed.
+  Actual backend fields:
+  id, status, priority_level, priority_score,
+  match_score, deadline, job_deadline,
+  job_title, company_name, notes.
 */
 
 function mapApplication(application, index) {
-  const riskStatus =
-    application.riskStatus || "Status unavailable";
+  const status = application.status || "unknown";
+  const priority = application.priority_level || "medium";
 
   return {
-    id:
-      application.id ??
-      application.application_id ??
-      null,
+    id: application.id ?? application.application_id ?? null,
 
     rank: index + 1,
 
-    company:
-      application.company_name || "Company not specified",
+    company: application.company_name || "Company not specified",
 
-    role:
-      application.job_title || "Role not specified",
+    role: application.job_title || "Role not specified",
 
     score: getNumericValue(application.priority_score),
 
     match: getNumericValue(application.match_score),
 
-    status: riskStatus,
+    status,
 
-    statusColor: getStatusColor(riskStatus),
+    statusLabel: formatStatus(status),
+
+    statusColor:
+      STATUS_STYLES[status.toLowerCase()]
+        ? status.toLowerCase()
+        : "saved",
+
+    priority,
+
+    priorityLabel: formatPriority(priority),
+
+    priorityColor:
+      PRIORITY_STYLES[priority.toLowerCase()]
+        ? priority.toLowerCase()
+        : "medium",
 
     deadline: formatDeadline(application),
 
     deadlineDate: formatDate(application),
 
     description:
-      application.reason ||
-      "No additional application details available.",
+      application.notes ||
+      "No additional notes available for this application.",
 
-    applicationStatus:
-      application.status || "Unknown",
+    applicationStatus: status,
   };
 }
 
@@ -196,8 +203,7 @@ function ScoreRing({ score }) {
       ? 0
       : Math.min(100, Math.max(0, numericScore));
 
-  const progress =
-    circumference * (safeScore / 100);
+  const progress = circumference * (safeScore / 100);
 
   return (
     <svg
@@ -242,9 +248,7 @@ function ScoreRing({ score }) {
         fontWeight="700"
         fill="#111827"
       >
-        {numericScore === null
-          ? "N/A"
-          : Math.round(safeScore)}
+        {numericScore === null ? "N/A" : Math.round(safeScore)}
       </text>
     </svg>
   );
@@ -293,7 +297,10 @@ function SummaryCard({
 
 function ApplicationCard({ app }) {
   const statusStyle =
-    STATUS_STYLES[app.statusColor] || STATUS_STYLES.blue;
+    STATUS_STYLES[app.statusColor] || STATUS_STYLES.saved;
+
+  const priorityStyle =
+    PRIORITY_STYLES[app.priorityColor] || PRIORITY_STYLES.medium;
 
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-md">
@@ -317,7 +324,7 @@ function ApplicationCard({ app }) {
               <span
                 className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusStyle}`}
               >
-                {app.status}
+                {app.statusLabel}
               </span>
             </div>
 
@@ -336,7 +343,6 @@ function ApplicationCard({ app }) {
 
               <span className="flex items-center gap-1">
                 <Clock size={14} />
-
                 {app.deadline}
               </span>
             </div>
@@ -349,6 +355,18 @@ function ApplicationCard({ app }) {
               Score /100
             </span>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500">
+            Priority:
+          </span>
+
+          <span
+            className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${priorityStyle}`}
+          >
+            {app.priorityLabel}
+          </span>
         </div>
 
         <div className="rounded-lg border border-gray-100 bg-indigo-50/60 p-3">
@@ -383,7 +401,7 @@ function ApplicationCard({ app }) {
           <span className="text-xs text-gray-500">
             Application Status:{" "}
             <span className="font-semibold text-gray-700">
-              {app.applicationStatus}
+              {app.statusLabel}
             </span>
           </span>
 
@@ -443,7 +461,7 @@ function PriorityQueue() {
   const [error, setError] = useState(null);
 
   /* =======================================================
-     FETCH APPLICATIONS
+     FETCH APPLICATIONS FROM BACKEND
   ======================================================= */
 
   const fetchApplications = useCallback(async () => {
@@ -453,8 +471,7 @@ function PriorityQueue() {
     try {
       const result = await api.get("/api/applications");
 
-      const backendApplications =
-        result?.data?.applications;
+      const backendApplications = getApiApplications(result);
 
       if (!Array.isArray(backendApplications)) {
         throw new Error(
@@ -462,11 +479,10 @@ function PriorityQueue() {
         );
       }
 
-      // Preserve backend ranking order.
-      const mappedApplications =
-        backendApplications.map((application, index) =>
-          mapApplication(application, index)
-        );
+      // Keep the ranking order received from the backend.
+      const mappedApplications = backendApplications.map(
+        (application, index) => mapApplication(application, index)
+      );
 
       setApplications(mappedApplications);
 
@@ -475,7 +491,7 @@ function PriorityQueue() {
 
       setError(
         err.message ||
-        "Unable to load applications. Please try again."
+          "Unable to load applications. Please try again."
       );
 
       setApplications([]);
@@ -501,15 +517,11 @@ function PriorityQueue() {
   );
 
   const activeOffers = applications.filter(
-    (app) =>
-      app.applicationStatus?.toLowerCase() === "offer"
+    (app) => app.applicationStatus?.toLowerCase() === "offer"
   ).length;
 
   const urgentApplications = activeApplications.filter(
-    (app) =>
-      ["at risk", "needs attention"].includes(
-        app.status?.toLowerCase()
-      )
+    (app) => app.priority?.toLowerCase() === "high"
   ).length;
 
   const scoredApplications = activeApplications.filter(
@@ -528,7 +540,7 @@ function PriorityQueue() {
 
   const urgencyLabel =
     urgentApplications > 0
-      ? "High Attention"
+      ? "High Priority"
       : activeApplications.length > 0
         ? "On Track"
         : "N/A";
@@ -548,7 +560,7 @@ function PriorityQueue() {
 
       subtitle: error
         ? "Application data unavailable"
-        : "Applications requiring attention",
+        : "Applications marked as high priority",
 
       icon: Flame,
       iconColor: "bg-red-50 text-red-600",
@@ -586,7 +598,7 @@ function PriorityQueue() {
       iconColor: "bg-orange-50 text-orange-600",
 
       valueColor:
-        urgencyLabel === "High Attention"
+        urgencyLabel === "High Priority"
           ? "text-red-600"
           : "text-gray-900",
     },
@@ -660,9 +672,7 @@ function PriorityQueue() {
               className={isLoading ? "animate-spin" : ""}
             />
 
-            {isLoading
-              ? "Refreshing..."
-              : "Refresh Applications"}
+            {isLoading ? "Refreshing..." : "Refresh Applications"}
           </button>
 
           <button
@@ -819,17 +829,17 @@ function PriorityQueue() {
 
           {/* APPLICATION LIST */}
 
-         {!isLoading &&
-  !error &&
-  activeApplications.map((app, index) => (
-    <ApplicationCard
-      key={app.id ?? index}
-      app={{
-        ...app,
-        rank: index + 1,
-      }}
-    />
-  ))}
+          {!isLoading &&
+            !error &&
+            activeApplications.map((app, index) => (
+              <ApplicationCard
+                key={app.id ?? index}
+                app={{
+                  ...app,
+                  rank: index + 1,
+                }}
+              />
+            ))}
         </div>
 
         {/* RIGHT SIDEBAR */}

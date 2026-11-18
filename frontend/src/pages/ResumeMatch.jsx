@@ -1,60 +1,49 @@
+
+import { useEffect, useMemo, useState } from "react";
 import {
   FileText,
   Target,
   CheckCircle2,
   AlertTriangle,
-  Upload,
   RefreshCw,
-  SlidersHorizontal,
-  ChevronDown,
   Building2,
   Clock3,
   Sparkles,
   ShieldCheck,
   CircleAlert,
-  WandSparkles,
-  ClipboardCheck,
   Info,
 } from "lucide-react";
+import { api } from "../services/api";
 
-/* =========================================================
-   SUMMARY CARD
-========================================================= */
+function getPayload(response) {
+  return response?.data?.data ?? response?.data ?? response;
+}
 
-const summaryCards = [
-  {
-    title: "OVERALL PORTFOLIO MATCH",
-    value: "N/A",
-    subtitle: "Awaiting resume analysis",
-    icon: Target,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-  },
-  {
-    title: "MATCHED TECHNICAL SKILLS",
-    value: "N/A",
-    subtitle: "Verified skills unavailable",
-    icon: CheckCircle2,
-    color: "text-sky-600",
-    bg: "bg-sky-50",
-  },
-  {
-    title: "CRITICAL SKILL GAPS",
-    value: "N/A",
-    subtitle: "No analysis available",
-    icon: AlertTriangle,
-    color: "text-red-600",
-    bg: "bg-red-50",
-  },
-  {
-    title: "ESTIMATED ATS PASS RATE",
-    value: "N/A",
-    subtitle: "ATS analysis unavailable",
-    icon: ClipboardCheck,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-  },
-];
+function getSkillName(skill) {
+  if (typeof skill === "string") return skill;
+
+  return (
+    skill?.skill_name ||
+    skill?.name ||
+    skill?.skill ||
+    skill?.title ||
+    "Unknown skill"
+  );
+}
+
+function getResumeName(resume) {
+  return (
+    resume?.file_name ||
+    resume?.filename ||
+    resume?.name ||
+    resume?.title ||
+    `Resume ${resume.id}`
+  );
+}
+
+function getJobName(job) {
+  return job?.title || job?.job_title || `Job ${job.id}`;
+}
 
 function SummaryCard({ item }) {
   const Icon = item.icon;
@@ -62,7 +51,7 @@ function SummaryCard({ item }) {
   return (
     <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <p className="max-w-[160px] text-[10px] font-bold leading-5 tracking-wide text-gray-500">
+        <p className="max-w-[160px] text-xs font-bold leading-5 tracking-wide text-gray-500">
           {item.title}
         </p>
 
@@ -82,10 +71,6 @@ function SummaryCard({ item }) {
   );
 }
 
-/* =========================================================
-   SECTION HEADER
-========================================================= */
-
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div className="flex items-start gap-2.5">
@@ -96,12 +81,10 @@ function SectionHeader({ icon: Icon, title, subtitle }) {
       )}
 
       <div>
-        <h2 className="text-sm font-bold text-gray-900">
-          {title}
-        </h2>
+        <h2 className="text-sm font-bold text-gray-900">{title}</h2>
 
         {subtitle && (
-          <p className="mt-1 text-[11px] leading-4 text-gray-500">
+          <p className="mt-1 text-xs leading-4 text-gray-500">
             {subtitle}
           </p>
         )}
@@ -110,70 +93,234 @@ function SectionHeader({ icon: Icon, title, subtitle }) {
   );
 }
 
-/* =========================================================
-   EMPTY STATE
-========================================================= */
-
 function EmptyMessage({ title, description }) {
   return (
     <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6 text-center">
       <FileText size={22} className="mx-auto text-gray-400" />
 
-      <p className="mt-2 text-xs font-semibold text-gray-700">
-        {title}
-      </p>
+      <p className="mt-2 text-sm font-semibold text-gray-700">{title}</p>
 
-      <p className="mx-auto mt-1 max-w-xs text-[11px] leading-5 text-gray-500">
+      <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-gray-500">
         {description}
       </p>
     </div>
   );
 }
-
-/* =========================================================
-   UNAVAILABLE FEATURE PANEL
-========================================================= */
 
 function UnavailablePanel({ title, description, icon: Icon }) {
   return (
     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
       <div className="flex items-center gap-2">
         <Icon size={16} className="text-indigo-600" />
-
-        <h3 className="text-xs font-semibold text-gray-800">
-          {title}
-        </h3>
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
       </div>
 
-      <p className="mt-2 text-[11px] leading-5 text-gray-500">
+      <p className="mt-2 text-xs leading-5 text-gray-500">
         {description}
       </p>
 
-      <span className="mt-3 inline-block rounded-md bg-gray-200 px-2 py-1 text-[9px] font-semibold text-gray-500">
+      <span className="mt-3 inline-block rounded-md bg-gray-200 px-2 py-1 text-xs font-semibold text-gray-500">
         NOT AVAILABLE
       </span>
     </div>
   );
 }
 
-/* =========================================================
-   MAIN RESUME MATCH PAGE
-========================================================= */
-
 function ResumeMatch() {
+  const [resumes, setResumes] = useState([]);
+  const [jobs, setJobs] = useState([]);
+
+  const [selectedResume, setSelectedResume] = useState("");
+  const [selectedJob, setSelectedJob] = useState("");
+
+  const [matchData, setMatchData] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+  const [matching, setMatching] = useState(false);
+  const [error, setError] = useState("");
+  const [matchError, setMatchError] = useState("");
+
+  // Fetch resumes and jobs from backend
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchInitialData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [resumeResponse, jobResponse] = await Promise.all([
+          api.get("/api/resumes"),
+          api.get("/api/jobs"),
+        ]);
+
+        const resumePayload = getPayload(resumeResponse);
+        const jobPayload = getPayload(jobResponse);
+
+        const resumeList = Array.isArray(resumePayload?.resumes)
+          ? resumePayload.resumes
+          : [];
+
+        const jobList = Array.isArray(jobPayload?.jobs)
+          ? jobPayload.jobs
+          : [];
+
+        if (cancelled) return;
+
+        setResumes(resumeList);
+        setJobs(jobList);
+
+        if (resumeList.length > 0) {
+          setSelectedResume(String(resumeList[0].id));
+        }
+
+        if (jobList.length > 0) {
+          setSelectedJob(String(jobList[0].id));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Unable to load resumes and jobs.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchInitialData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fetch actual resume-job skill matching result
+  useEffect(() => {
+    if (!selectedResume || !selectedJob) {
+      setMatchData(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchMatch() {
+      try {
+        setMatching(true);
+        setMatchError("");
+        setMatchData(null);
+
+        const response = await api.get(
+          `/api/resumes/${encodeURIComponent(selectedResume)}/match/${encodeURIComponent(selectedJob)}`
+        );
+
+        const result = getPayload(response);
+
+        if (!cancelled) {
+          setMatchData(result);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setMatchError(err.message || "Unable to analyze this resume.");
+        }
+      } finally {
+        if (!cancelled) setMatching(false);
+      }
+    }
+
+    fetchMatch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedResume, selectedJob]);
+
+  const matchedSkills = useMemo(() => {
+    return Array.isArray(matchData?.matchedSkills)
+      ? matchData.matchedSkills
+      : [];
+  }, [matchData]);
+
+  const missingSkills = useMemo(() => {
+    return Array.isArray(matchData?.missingSkills)
+      ? matchData.missingSkills
+      : [];
+  }, [matchData]);
+
+  const matchedCount =
+    matchData?.matchedCount ?? matchedSkills.length;
+
+  const missingCount =
+    matchData?.missingCount ?? missingSkills.length;
+
+  const totalRequiredSkills =
+    matchData?.totalRequiredSkills ??
+    matchedCount + missingCount;
+
+  const matchPercentage =
+    typeof matchData?.matchPercentage === "number"
+      ? matchData.matchPercentage
+      : null;
+
+  const summaryCards = [
+    {
+      title: "OVERALL RESUME MATCH",
+      value:
+        matchPercentage !== null
+          ? `${matchPercentage}%`
+          : "N/A",
+      subtitle: matchData
+        ? "Based on selected resume and job"
+        : "Awaiting analysis",
+      icon: Target,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+    },
+    {
+      title: "MATCHED TECHNICAL SKILLS",
+      value: matchData ? matchedCount : "N/A",
+      subtitle: matchData
+        ? "Matching required skills"
+        : "Awaiting analysis",
+      icon: CheckCircle2,
+      color: "text-sky-600",
+      bg: "bg-sky-50",
+    },
+    {
+      title: "MISSING SKILLS",
+      value: matchData ? missingCount : "N/A",
+      subtitle: matchData
+        ? "Skills to improve"
+        : "Awaiting analysis",
+      icon: AlertTriangle,
+      color: "text-red-600",
+      bg: "bg-red-50",
+    },
+    {
+      title: "ESTIMATED ATS PASS RATE",
+      value: "N/A",
+      subtitle: "ATS analysis not connected",
+      icon: ShieldCheck,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+    },
+  ];
+
+  const selectedJobDetails = jobs.find(
+    (job) => String(job.id) === selectedJob
+  );
+
+  const selectedResumeDetails = resumes.find(
+    (resume) => String(resume.id) === selectedResume
+  );
+
   return (
     <div className="min-h-screen bg-[#f7f8ff] p-4 sm:p-5 lg:p-6">
-
       {/* PAGE HEADER */}
-
       <section className="mb-5">
         <div className="flex flex-wrap items-start justify-between gap-5">
-
           <div>
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               <span>Workspace</span>
               <span>/</span>
-
               <span className="text-indigo-600">
                 Resume Match & Skill Gap
               </span>
@@ -183,342 +330,321 @@ function ResumeMatch() {
               Resume Match & Skill Gap Analyzer
             </h1>
 
-            <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-600 sm:text-sm">
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-gray-600">
               Evaluate your technical credentials against target job
-              descriptions, discover keyword deficiencies, and follow
-              structured roadmaps to improve your resume.
+              descriptions, discover skill gaps and improve your resume.
             </p>
           </div>
 
-          {/* TOP ACTIONS */}
-
-          <div className="flex min-w-[230px] flex-col items-start gap-2 sm:items-end">
-
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-semibold text-blue-700">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
-              PARSER API NOT CONNECTED
-            </span>
-
-            <button
-              type="button"
-              disabled
-              title="Resume upload API is not available yet"
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] font-semibold text-gray-400 opacity-70"
-            >
-              <Upload size={14} />
-              Upload Resume
-
-              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px]">
-                N/A
-              </span>
-            </button>
-
-            <button
-              type="button"
-              disabled
-              title="Benchmark API is not available yet"
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] font-semibold text-gray-400 opacity-70"
-            >
-              <SlidersHorizontal size={14} />
-              Benchmark: Unavailable
-              <ChevronDown size={13} />
-            </button>
-
-            <button
-              type="button"
-              disabled
-              title="Resume Match API is not available yet"
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-[11px] font-semibold text-white opacity-50"
-            >
-              <RefreshCw size={13} />
-              Re-analyze ATS Match
-            </button>
-
-          </div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            RESUME MATCH API CONNECTED
+          </span>
         </div>
       </section>
 
-      {/* API NOTICE */}
+      {/* SELECT RESUME AND JOB */}
+      <section className="mb-5 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <SectionHeader
+          title="Select Resume & Job"
+          subtitle="Choose a resume and a job to calculate your actual skill match."
+          icon={FileText}
+        />
 
-      <div className="mb-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
-        <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
+        {loading ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+            <RefreshCw size={16} className="animate-spin" />
+            Loading your resumes and available jobs...
+          </div>
+        ) : error ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-gray-700">
+                Select Resume
+              </span>
 
-        <p className="text-[11px] leading-5 text-amber-800">
-          Resume analysis is currently unavailable. Scores, skill gaps
-          and ATS results will appear when the Resume Match backend
-          functionality is implemented and connected.
-        </p>
-      </div>
+              <select
+                value={selectedResume}
+                onChange={(event) => setSelectedResume(event.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none focus:border-indigo-500"
+              >
+                <option value="">Choose your resume</option>
+
+                {resumes.map((resume) => (
+                  <option key={resume.id} value={resume.id}>
+                    {getResumeName(resume)}
+                  </option>
+                ))}
+              </select>
+
+              {resumes.length === 0 && (
+                <p className="mt-2 text-xs text-amber-600">
+                  No resumes found in your account.
+                </p>
+              )}
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-gray-700">
+                Select Job
+              </span>
+
+              <select
+                value={selectedJob}
+                onChange={(event) => setSelectedJob(event.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none focus:border-indigo-500"
+              >
+                <option value="">Choose a job</option>
+
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {getJobName(job)}
+                    {job.company_name ? ` - ${job.company_name}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              {jobs.length === 0 && (
+                <p className="mt-2 text-xs text-amber-600">
+                  No jobs found in the database.
+                </p>
+              )}
+            </label>
+          </div>
+        )}
+
+        {selectedResumeDetails && selectedJobDetails && (
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-500">
+            <span className="rounded-md bg-indigo-50 px-3 py-2 text-indigo-700">
+              Resume: {getResumeName(selectedResumeDetails)}
+            </span>
+
+            <span className="rounded-md bg-sky-50 px-3 py-2 text-sky-700">
+              Job: {getJobName(selectedJobDetails)}
+            </span>
+          </div>
+        )}
+      </section>
+
+      {/* MATCH ERROR */}
+      {matchError && (
+        <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-3">
+          <CircleAlert size={16} className="mt-0.5 shrink-0 text-red-600" />
+
+          <p className="text-sm leading-5 text-red-700">
+            {matchError}
+          </p>
+        </div>
+      )}
+
+      {/* LOADING */}
+      {matching && (
+        <div className="mb-5 flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+          <RefreshCw size={16} className="animate-spin" />
+          Analyzing resume against selected job...
+        </div>
+      )}
 
       {/* SUMMARY CARDS */}
-
       <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((item) => (
           <SummaryCard key={item.title} item={item} />
         ))}
       </section>
 
-      {/* MAIN DASHBOARD GRID */}
-
+      {/* MAIN DASHBOARD */}
       <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
-
         {/* LEFT COLUMN */}
-
         <div className="space-y-4 xl:col-span-8">
-
           {/* SKILL GAP MATRIX */}
-
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5">
-
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-3">
-
+            <div className="border-b border-gray-100 pb-3">
               <SectionHeader
                 title="Skill Gap & Coverage Matrix"
-                subtitle="Identify missing skills and improvement areas"
+                subtitle="Identify matching skills and areas that need improvement"
                 icon={Target}
               />
-
-              <div className="flex items-center gap-1 rounded-lg bg-indigo-50 p-1">
-                <button
-                  type="button"
-                  disabled
-                  className="cursor-not-allowed rounded-md bg-white px-3 py-2 text-[10px] font-bold text-gray-400 shadow-sm"
-                >
-                  All
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                  className="cursor-not-allowed px-2 py-2 text-[10px] text-gray-400"
-                >
-                  Role by Role
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                  className="cursor-not-allowed px-2 py-2 text-[10px] text-gray-400"
-                >
-                  JD Diff
-                </button>
-              </div>
-
             </div>
 
-            {/* HIGH PRIORITY */}
-
+            {/* MATCHED SKILLS */}
             <div className="mt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
 
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Matched Skills
+                  </h3>
+                </div>
+
+                <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                  {matchData ? `${matchedCount} matched` : "Awaiting analysis"}
+                </span>
+              </div>
+
+              {matching ? (
+                <EmptyMessage
+                  title="Analyzing skills"
+                  description="Matched skills will appear here when the analysis is complete."
+                />
+              ) : matchedSkills.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {matchedSkills.map((skill, index) => (
+                    <span
+                      key={`${getSkillName(skill)}-${index}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700"
+                    >
+                      <CheckCircle2 size={14} />
+                      {getSkillName(skill)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <EmptyMessage
+                  title="No matched skills to display"
+                  description="Select a resume and job to see skills that match the job requirements."
+                />
+              )}
+            </div>
+
+            {/* MISSING SKILLS */}
+            <div className="mt-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-red-500" />
 
-                  <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-800">
-                    High Urgency Deficits
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Missing Skills
                   </h3>
                 </div>
 
-                <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-semibold text-red-600">
-                  Analysis Pending
+                <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">
+                  {matchData ? `${missingCount} missing` : "Awaiting analysis"}
                 </span>
               </div>
 
-              <EmptyMessage
-                title="Critical skill gaps not available"
-                description="Missing keywords, critical requirements and their ATS impact will appear here after resume and job description analysis."
-              />
-
-            </div>
-
-            {/* MODERATE GAPS */}
-
-            <div className="mt-5">
-
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-500" />
-
-                  <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-800">
-                    Moderate Gaps & Nice-to-Haves
-                  </h3>
+              {matching ? (
+                <EmptyMessage
+                  title="Analyzing skill gaps"
+                  description="Missing skills will appear here when the analysis is complete."
+                />
+              ) : missingSkills.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {missingSkills.map((skill, index) => (
+                    <span
+                      key={`${getSkillName(skill)}-${index}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+                    >
+                      <AlertTriangle size={14} />
+                      {getSkillName(skill)}
+                    </span>
+                  ))}
                 </div>
-
-                <span className="text-[10px] text-gray-400">
-                  Awaiting analysis
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {[
-                  "Technical Skills",
-                  "Tools & Technologies",
-                  "Other Requirements",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-lg border border-gray-100 bg-gray-50 p-3"
-                  >
-                    <p className="text-xs font-semibold text-gray-700">
-                      {item}
-                    </p>
-
-                    <p className="mt-2 text-[10px] text-gray-400">
-                      No analysis available
-                    </p>
-                  </div>
-                ))}
-              </div>
-
+              ) : matchData ? (
+                <EmptyMessage
+                  title="No missing skills"
+                  description="The selected resume covers all the required skills returned by this analysis."
+                />
+              ) : (
+                <EmptyMessage
+                  title="Skill gaps not available"
+                  description="Select a resume and job to identify missing skills."
+                />
+              )}
             </div>
 
-            {/* STRONGEST COMPETENCIES */}
-
+            {/* MATCH PROGRESS */}
             <div className="mt-5 border-t border-gray-100 pt-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Overall Skill Coverage
+                </h3>
 
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-500" />
-
-                  <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-800">
-                    Strongest Matched Competencies
-                  </h3>
-                </div>
-
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-semibold text-blue-600">
-                  Awaiting verification
+                <span className="text-sm font-bold text-indigo-600">
+                  {matchPercentage !== null
+                    ? `${matchPercentage}%`
+                    : "N/A"}
                 </span>
               </div>
 
-              <EmptyMessage
-                title="No verified competencies available"
-                description="Verified technical and professional skills will appear here after resume analysis."
-              />
+              <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, matchPercentage ?? 0))}%`,
+                  }}
+                />
+              </div>
 
+              <p className="mt-2 text-xs text-gray-500">
+                {matchData
+                  ? `${matchedCount} matched out of ${totalRequiredSkills} required skills`
+                  : "Skill coverage will appear after analysis."}
+              </p>
             </div>
-
           </div>
 
           {/* BULLET POINT SYNTHESIZER */}
-
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5">
+            <SectionHeader
+              title="Interactive Bullet Point Synthesizer"
+              subtitle="Improve resume bullet points using relevant skills and keywords"
+              icon={Sparkles}
+            />
 
-            <div className="flex flex-wrap items-start justify-between gap-3">
-
-              <SectionHeader
-                title="Interactive Bullet Point Synthesizer"
-                subtitle="Improve resume bullet points using relevant skills and keywords"
-                icon={WandSparkles}
+            <div className="mt-4">
+              <UnavailablePanel
+                title="AI suggestions unavailable"
+                description="AI-generated bullet point improvements require a separate resume enhancement API."
+                icon={Sparkles}
               />
-
-              <span className="rounded-md bg-indigo-50 px-2 py-1 text-[9px] font-semibold text-indigo-600">
-                AI FEATURE
-              </span>
-
             </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-
-              {/* CURRENT BULLET */}
-
-              <div className="rounded-lg border border-gray-100 bg-[#f7f8ff] p-3">
-
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Current Bullet on Resume
-                </p>
-
-                <div className="mt-4 flex min-h-[110px] items-center justify-center">
-                  <p className="text-center text-xs leading-6 text-gray-400">
-                    Your resume bullet points will appear here after
-                    resume upload and parsing.
-                  </p>
-                </div>
-
-                <div className="border-t border-gray-200 pt-2">
-                  <p className="text-[10px] text-gray-400">
-                    Resume content unavailable
-                  </p>
-                </div>
-
-              </div>
-
-              {/* RECOMMENDED REVISION */}
-
-              <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 p-3">
-
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-700">
-                    Recommended Revision
-                  </p>
-
-                  <Sparkles size={15} className="text-indigo-600" />
-                </div>
-
-                <div className="mt-4 flex min-h-[110px] items-center justify-center">
-                  <p className="text-center text-xs leading-6 text-gray-500">
-                    AI-generated resume improvements will appear here
-                    after analysis.
-                  </p>
-                </div>
-
-                <div className="border-t border-indigo-100 pt-2">
-                  <p className="text-[10px] text-indigo-500">
-                    Keyword improvement: N/A
-                  </p>
-                </div>
-
-              </div>
-
-            </div>
-
-            <div className="mt-3 flex items-start gap-2 text-[10px] leading-5 text-gray-400">
-              <Info size={14} className="mt-0.5 shrink-0" />
-
-              Suggestions will be based on actual resume content
-              and verified skills when this feature is connected.
-            </div>
-
-            <button
-              type="button"
-              disabled
-              title="Resume analysis API is not available yet"
-              className="mt-3 inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-[10px] font-semibold text-white opacity-50"
-            >
-              <Sparkles size={13} />
-              Generate Suggestions
-            </button>
-
           </div>
-
         </div>
 
         {/* RIGHT COLUMN */}
-
         <div className="space-y-4 xl:col-span-4">
-
           {/* COMPANY ALIGNMENT */}
-
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-
             <SectionHeader
               title="Company Alignment"
-              subtitle="Match analysis for target company postings"
+              subtitle="Selected job information"
               icon={Building2}
             />
 
             <div className="mt-4">
-              <EmptyMessage
-                title="Company alignment unavailable"
-                description="Company-wise match scores and missing requirements will appear here when job matching data is available."
-              />
-            </div>
+              {selectedJobDetails ? (
+                <div className="rounded-lg bg-indigo-50 p-3">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {getJobName(selectedJobDetails)}
+                  </p>
 
+                  <p className="mt-1 text-xs text-gray-600">
+                    {selectedJobDetails.company_name ||
+                      "Company not specified"}
+                  </p>
+
+                  {selectedJobDetails.location && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      {selectedJobDetails.location}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <EmptyMessage
+                  title="No job selected"
+                  description="Select a job to see its details."
+                />
+              )}
+            </div>
           </div>
 
           {/* SKILL SPRINTS */}
-
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-
             <SectionHeader
               title="14-Day Skill Sprints"
               subtitle="Personalized projects and learning plans"
@@ -526,39 +652,36 @@ function ResumeMatch() {
             />
 
             <div className="mt-4">
-              <EmptyMessage
+              <UnavailablePanel
                 title="Learning plan not generated"
-                description="Personalized projects and learning recommendations will be generated after your resume skill gaps are identified."
+                description="Personalized learning plans require a separate learning recommendation API."
+                icon={Clock3}
               />
             </div>
-
           </div>
 
-          {/* ATS PARSING HEALTH */}
-
+          {/* ATS HEALTH */}
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-
             <div className="flex items-center justify-between gap-2">
-
               <SectionHeader
                 title="ATS Parsing Health"
                 icon={ShieldCheck}
               />
 
-              <span className="rounded-md bg-blue-50 px-2 py-1 text-[9px] font-bold text-blue-600">
+              <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">
                 N/A
               </span>
-
             </div>
 
-            <p className="mt-2 text-[11px] text-gray-500">
+            <p className="mt-2 text-xs text-gray-500">
               Resume parsing and compatibility checks
             </p>
 
             <div className="mt-4">
-              <EmptyMessage
+              <UnavailablePanel
                 title="ATS checks not performed"
-                description="Font hierarchy, document structure, contact information and section recognition cannot be checked until a resume is uploaded and parsed."
+                description="Font hierarchy, document structure and ATS compatibility need a separate parsing API."
+                icon={ShieldCheck}
               />
             </div>
 
@@ -568,29 +691,24 @@ function ResumeMatch() {
                 className="mt-0.5 shrink-0 text-amber-500"
               />
 
-              <p className="text-[10px] leading-5 text-amber-700">
-                No ATS checks have been completed.
+              <p className="text-xs leading-5 text-amber-700">
+                Skill matching does not represent an ATS pass score.
               </p>
             </div>
-
           </div>
-
         </div>
-
       </section>
 
       {/* FOOTER */}
-
-      <div className="mt-5 flex items-start gap-2 pb-3 text-[10px] leading-5 text-gray-400">
+      <div className="mt-5 flex items-start gap-2 pb-3 text-xs leading-5 text-gray-400">
         <Info size={14} className="mt-0.5 shrink-0" />
 
         <p>
-          Resume match scores, company alignment, skill gaps and ATS
-          results require actual resume and job description analysis.
-          No sample analysis results are displayed.
+          Match results are fetched from your backend for the selected
+          resume and job. ATS scoring and AI recommendations are not
+          included in the current matching API.
         </p>
       </div>
-
     </div>
   );
 }

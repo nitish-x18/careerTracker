@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -24,8 +23,8 @@ const filterOptions = {
 function SectionHeading({ icon: Icon, children, action }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-[12px] font-bold text-slate-800">
-        <Icon size={14} className="text-violet-700" />
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+        <Icon size={16} className="text-violet-700" />
         {children}
       </h2>
       {action}
@@ -60,7 +59,6 @@ export default function JobAndIntern() {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Fetch jobs from backend
   useEffect(() => {
     const fetchJobs = async () => {
       try {
@@ -68,7 +66,6 @@ export default function JobAndIntern() {
         setError("");
 
         const jobData = await jobService.getAllJobs();
-
         setJobs(Array.isArray(jobData) ? jobData : []);
       } catch (err) {
         setError(err.message || "Failed to load jobs.");
@@ -80,17 +77,13 @@ export default function JobAndIntern() {
     fetchJobs();
   }, [reloadKey]);
 
-  // Search, filter and sort jobs
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const normalizedLocation = location.trim().toLowerCase();
 
     return jobs
       .filter((job) => {
-        const searchableText = [
-          job.title,
-          job.company_name,
-        ]
+        const searchableText = [job.title, job.company_name]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -99,22 +92,16 @@ export default function JobAndIntern() {
         const type = (job.type || "").toLowerCase();
 
         return (
-          (!normalizedQuery ||
-            searchableText.includes(normalizedQuery)) &&
-          (!normalizedLocation ||
-            jobLocation.includes(normalizedLocation)) &&
+          (!normalizedQuery || searchableText.includes(normalizedQuery)) &&
+          (!normalizedLocation || jobLocation.includes(normalizedLocation)) &&
           (!jobType || type === jobType.toLowerCase())
         );
       })
       .sort((a, b) => {
         if (sortBy === "deadline") {
-          const dateA = a.deadline
-            ? new Date(a.deadline).getTime()
-            : Infinity;
+          const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
 
-          const dateB = b.deadline
-            ? new Date(b.deadline).getTime()
-            : Infinity;
+          const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
 
           return dateA - dateB;
         }
@@ -131,7 +118,7 @@ export default function JobAndIntern() {
     setSavedJobs((current) =>
       current.includes(id)
         ? current.filter((savedId) => savedId !== id)
-        : [...current, id]
+        : [...current, id],
     );
   }
 
@@ -146,9 +133,7 @@ export default function JobAndIntern() {
         throw new Error("Invalid URL");
       }
 
-      setUrlMessage(
-        "Valid job URL. Automatic importing is not available yet."
-      );
+      setUrlMessage("Valid job URL. Automatic importing is not available yet.");
     } catch {
       setUrlMessage("Please enter a valid job posting URL.");
     }
@@ -183,23 +168,23 @@ export default function JobAndIntern() {
       {/* Page heading */}
       <section className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="mb-1.5 flex items-center gap-1 text-[8px] font-bold tracking-[0.15em] text-violet-700">
+          <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold tracking-[0.12em] text-violet-700">
             <span className="h-1.5 w-1.5 rounded-full bg-violet-700" />
             CAREER OPPORTUNITIES
           </p>
 
-          <h1 className="text-[22px] font-bold leading-tight tracking-tight text-slate-900">
+          <h1 className="text-3xl font-bold leading-tight tracking-tight text-slate-900">
             Job & Internship Search
           </h1>
 
-          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-slate-500">
+          <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-500">
             Discover opportunities that match your skills and career goals.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[9px] text-slate-500">
-            <Bookmark size={11} />
+          <span className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-500">
+            <Bookmark size={13} />
             {savedJobs.length} saved
           </span>
         </div>
@@ -209,13 +194,13 @@ export default function JobAndIntern() {
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_auto]">
           <label className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 focus-within:border-violet-500">
-            <Search size={15} className="shrink-0 text-slate-400" />
+            <Search size={16} className="shrink-0 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Job title or company"
               aria-label="Search job title or company"
-              className="w-full min-w-0 bg-transparent text-[10px] outline-none placeholder:text-slate-400"
+              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
 
             {query && (
@@ -224,19 +209,19 @@ export default function JobAndIntern() {
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
               >
-                <X size={12} className="text-slate-400" />
+                <X size={14} className="text-slate-400" />
               </button>
             )}
           </label>
 
           <label className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 focus-within:border-violet-500">
-            <MapPin size={15} className="shrink-0 text-slate-400" />
+            <MapPin size={16} className="shrink-0 text-slate-400" />
             <input
               value={location}
               onChange={(event) => setLocation(event.target.value)}
               placeholder="City or location"
               aria-label="Filter by location"
-              className="w-full min-w-0 bg-transparent text-[10px] outline-none placeholder:text-slate-400"
+              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
           </label>
 
@@ -244,13 +229,12 @@ export default function JobAndIntern() {
             type="button"
             onClick={() => setShowFilters((value) => !value)}
             aria-expanded={showFilters}
-            className="flex items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 py-2.5 text-[10px] font-semibold text-white transition hover:bg-violet-800"
+            className="flex items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"
           >
-            <SlidersHorizontal size={13} />
+            <SlidersHorizontal size={15} />
             Filters
-
             {activeFilterCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] text-violet-800">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-xs text-violet-800">
                 {activeFilterCount}
               </span>
             )}
@@ -270,7 +254,7 @@ export default function JobAndIntern() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="text-[10px] font-semibold text-violet-700 hover:text-violet-900"
+                className="text-sm font-semibold text-violet-700 hover:text-violet-900"
               >
                 Clear all filters
               </button>
@@ -279,9 +263,7 @@ export default function JobAndIntern() {
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[9px] text-slate-400">
-            Quick filters:
-          </span>
+          <span className="text-xs text-slate-400">Quick filters:</span>
 
           {["Internship", "Full-time"].map((item) => {
             const isActive = jobType === item;
@@ -292,11 +274,9 @@ export default function JobAndIntern() {
                 type="button"
                 aria-pressed={isActive}
                 onClick={() =>
-                  setJobType((current) =>
-                    current === item ? "" : item
-                  )
+                  setJobType((current) => (current === item ? "" : item))
                 }
-                className={`rounded-full border px-2.5 py-1 text-[9px] transition ${
+                className={`rounded-full border px-2.5 py-1 text-xs transition ${
                   isActive
                     ? "border-violet-300 bg-violet-100 font-semibold text-violet-800"
                     : "border-slate-200 text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
@@ -314,22 +294,23 @@ export default function JobAndIntern() {
         <section className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-[13px] font-bold text-slate-800">
+              <h2 className="text-base font-semibold text-slate-800">
                 Available opportunities
               </h2>
 
-              <p className="mt-0.5 text-[9px] text-slate-500">
-                {loading ? "Loading..." : `${filteredJobs.length} opportunities found`}
+              <p className="mt-0.5 text-xs text-slate-500">
+                {loading
+                  ? "Loading..."
+                  : `${filteredJobs.length} opportunities found`}
               </p>
             </div>
 
-            <label className="flex items-center gap-2 text-[9px] text-slate-500">
+            <label className="flex items-center gap-2 text-xs text-slate-500">
               Sort by
-
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value)}
-                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[9px] font-semibold text-slate-700 outline-none focus:border-violet-500"
+                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-violet-500"
               >
                 <option value="deadline">Deadline</option>
                 <option value="title">Job title</option>
@@ -338,17 +319,17 @@ export default function JobAndIntern() {
           </div>
 
           {loading ? (
-            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 text-[11px] text-slate-500">
+            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-500">
               Loading job opportunities...
             </div>
           ) : error ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-red-200 bg-red-50/50 px-5 py-10 text-center">
-              <p className="text-[11px] text-red-600">{error}</p>
+              <p className="text-sm text-red-600">{error}</p>
 
               <button
                 type="button"
                 onClick={() => setReloadKey((current) => current + 1)}
-                className="rounded-md bg-violet-700 px-4 py-2 text-[10px] font-semibold text-white hover:bg-violet-800"
+                className="rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800"
               >
                 Try again
               </button>
@@ -359,11 +340,11 @@ export default function JobAndIntern() {
                 <BriefcaseBusiness size={22} />
               </div>
 
-              <h3 className="mt-4 text-[13px] font-bold text-slate-800">
+              <h3 className="mt-4 text-base font-bold text-slate-800">
                 No job listings found
               </h3>
 
-              <p className="mt-2 max-w-sm text-[10px] leading-relaxed text-slate-500">
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
                 {jobs.length === 0
                   ? "There are currently no job opportunities available."
                   : "Try changing your search or filters to find opportunities."}
@@ -373,7 +354,7 @@ export default function JobAndIntern() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-violet-700 hover:bg-violet-50"
+                  className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
                 >
                   Clear search and filters
                 </button>
@@ -392,44 +373,44 @@ export default function JobAndIntern() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-[12px] font-bold text-slate-800">
+                      <h3 className="text-sm font-semibold text-slate-800">
                         {job.title}
                       </h3>
 
-                      <p className="mt-1 text-[10px] text-slate-500">
+                      <p className="mt-1 text-sm text-slate-500">
                         {job.company_name || "Company not specified"}
                       </p>
 
-                      <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-slate-500">
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
                         {job.location && (
                           <span className="flex items-center gap-1">
-                            <MapPin size={10} />
+                            <MapPin size={12} />
                             {job.location}
                           </span>
                         )}
 
                         {job.type && (
                           <span className="flex items-center gap-1">
-                            <BriefcaseBusiness size={10} />
+                            <BriefcaseBusiness size={12} />
                             {job.type}
                           </span>
                         )}
 
                         {job.season && (
                           <span className="flex items-center gap-1">
-                            <Clock3 size={10} />
+                            <Clock3 size={12} />
                             {job.season}
                           </span>
                         )}
                       </div>
 
                       {job.pay && (
-                        <p className="mt-2 text-[10px] font-semibold text-slate-700">
+                        <p className="mt-2 text-sm font-semibold text-slate-700">
                           Pay: {job.pay}
                         </p>
                       )}
 
-                      <p className="mt-1 text-[9px] text-slate-500">
+                      <p className="mt-1 text-xs text-slate-500">
                         Application deadline: {formatDate(job.deadline)}
                       </p>
                     </div>
@@ -458,9 +439,9 @@ export default function JobAndIntern() {
                         href={job.source_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 rounded-md bg-violet-700 px-3 py-2 text-[9px] font-semibold text-white hover:bg-violet-800"
+                        className="flex items-center gap-1 rounded-md bg-violet-700 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-800"
                       >
-                        View job <ExternalLink size={11} />
+                        View job <ExternalLink size={12} />
                       </a>
                     </div>
                   )}
@@ -473,20 +454,18 @@ export default function JobAndIntern() {
         {/* Right sidebar */}
         <aside className="min-w-0 space-y-4">
           <SidebarCard>
-            <SectionHeading icon={Sparkles}>
-              Match Persona
-            </SectionHeading>
+            <SectionHeading icon={Sparkles}>Match Persona</SectionHeading>
 
             <div className="rounded-lg bg-violet-50 p-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-700 shadow-sm">
                 <Sparkles size={16} />
               </div>
 
-              <p className="mt-2 text-[11px] font-bold text-slate-800">
+              <p className="mt-2 text-sm font-semibold text-slate-800">
                 Your career profile
               </p>
 
-              <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 Add your skills and career preferences to personalize job
                 recommendations.
               </p>
@@ -494,24 +473,22 @@ export default function JobAndIntern() {
               <button
                 type="button"
                 onClick={() => navigate("/profile")}
-                className="mt-3 w-full rounded-md bg-violet-700 px-2 py-2 text-[9px] font-semibold text-white hover:bg-violet-800"
+                className="mt-3 w-full rounded-md bg-violet-700 px-2 py-2 text-xs font-semibold text-white hover:bg-violet-800"
               >
                 Complete profile
               </button>
             </div>
 
-            <p className="mt-2 text-[8px] leading-relaxed text-slate-400">
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
               Personalized matching will be available when matching
               functionality is connected.
             </p>
           </SidebarCard>
 
           <SidebarCard>
-            <SectionHeading icon={Plus}>
-              Quick Add by URL
-            </SectionHeading>
+            <SectionHeading icon={Plus}>Quick Add by URL</SectionHeading>
 
-            <p className="mb-3 text-[9px] leading-relaxed text-slate-500">
+            <p className="mb-3 text-xs leading-relaxed text-slate-500">
               Paste a job posting link to check whether it is valid.
             </p>
 
@@ -525,21 +502,21 @@ export default function JobAndIntern() {
                 }}
                 placeholder="https://..."
                 aria-label="Job posting URL"
-                className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-[9px] outline-none focus:border-violet-500"
+                className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-xs outline-none focus:border-violet-500"
               />
 
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2 py-2 text-[9px] font-semibold text-violet-700 hover:bg-violet-100"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100"
               >
-                <Plus size={12} />
+                <Plus size={13} />
                 Check job link
               </button>
 
               {urlMessage && (
                 <p
                   role="status"
-                  className="text-[9px] leading-relaxed text-slate-600"
+                  className="text-xs leading-relaxed text-slate-600"
                 >
                   {urlMessage}
                 </p>
@@ -548,18 +525,16 @@ export default function JobAndIntern() {
           </SidebarCard>
 
           <SidebarCard>
-            <SectionHeading icon={RefreshCw}>
-              Weekly Inflow
-            </SectionHeading>
+            <SectionHeading icon={RefreshCw}>Weekly Inflow</SectionHeading>
 
             <div className="flex min-h-24 flex-col items-center justify-center rounded-lg bg-slate-50 px-3 py-4 text-center">
               <BriefcaseBusiness size={19} className="text-slate-300" />
 
-              <p className="mt-2 text-[10px] font-semibold text-slate-700">
+              <p className="mt-2 text-sm font-semibold text-slate-700">
                 No weekly data yet
               </p>
 
-              <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 Weekly job trends are not available from the current jobs API.
               </p>
             </div>
@@ -573,14 +548,14 @@ export default function JobAndIntern() {
 function FilterSelect({ label, value, options, onChange }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[9px] font-semibold text-slate-600">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
         {label}
       </span>
 
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[10px] text-slate-700 outline-none focus:border-violet-500"
+        className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-700 outline-none focus:border-violet-500"
       >
         <option value="">All</option>
 
