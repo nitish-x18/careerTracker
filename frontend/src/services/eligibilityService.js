@@ -1,9 +1,11 @@
+
 import { api } from "./api";
 
 const JOBS_ENDPOINT = "/api/jobs";
 const APPLICATIONS_ENDPOINT = "/api/applications";
 const RESUMES_ENDPOINT = "/api/resumes";
 const PROFILE_ENDPOINT = "/api/profile";
+const ELIGIBILITY_ENDPOINT = "/api/eligibility";
 
 export const eligibilityService = {
   // Fetch all available jobs
@@ -46,5 +48,19 @@ export const eligibilityService = {
     );
 
     return response.data.skills || [];
+  },
+
+  // Check eligibility using backend API
+  checkEligibility: async (jobId, resumeId) => {
+    const params = new URLSearchParams({
+      job_id: jobId,
+      resume_id: resumeId,
+    });
+
+    const response = await api.get(
+      `${ELIGIBILITY_ENDPOINT}?${params.toString()}`
+    );
+
+    return response.data;
   },
 };
