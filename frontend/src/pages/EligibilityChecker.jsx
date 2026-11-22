@@ -30,135 +30,6 @@ const ACTIVE_STATUSES = ["saved", "applied", "interview"];
 const getApplicationId = (application) =>
   String(application.applicationId ?? application.id ?? "");
 
-// Match backend eligibilityCheck.js rules.
-function calculateEligibility(student, job) {
-  if (!job) {
-    return {
-      status: "conditionally eligible",
-      eligible: false,
-      reasons: [],
-      unverified: ["Job information is unavailable"],
-    };
-  }
-
-  if (!student) {
-    return {
-      status: "conditionally eligible",
-      eligible: false,
-      reasons: [],
-      unverified: ["Candidate profile is missing"],
-    };
-  }
-
-  const reasons = [];
-  const unverified = [];
-
-  // 1. CGPA eligibility
-  if (job.min_cgpa != null) {
-    const minimumCGPA = Number(job.min_cgpa);
-
-    if (
-      !Number.isFinite(minimumCGPA) ||
-      minimumCGPA < 0 ||
-      minimumCGPA > 10
-    ) {
-      unverified.push("Job minimum CGPA requirement is invalid");
-    } else if (student.cgpa == null || student.cgpa === "") {
-      unverified.push("Student CGPA is missing");
-    } else {
-      const studentCGPA = Number(student.cgpa);
-
-      if (
-        !Number.isFinite(studentCGPA) ||
-        studentCGPA < 0 ||
-        studentCGPA > 10
-      ) {
-        unverified.push("Student CGPA is invalid");
-      } else if (studentCGPA < minimumCGPA) {
-        reasons.push("Minimum CGPA requirement not met");
-      }
-    }
-  }
-
-  // 2. Degree eligibility
-  if (job.required_degree != null && job.required_degree !== "") {
-    if (!student.degree || !String(student.degree).trim()) {
-      unverified.push("Student degree is missing");
-    } else if (
-      String(student.degree).trim().toLowerCase() !==
-      String(job.required_degree).trim().toLowerCase()
-    ) {
-      reasons.push("Required degree does not match");
-    }
-  }
-
-  // 3. Major / branch eligibility
-  if (job.required_major != null && job.required_major !== "") {
-    if (!student.major || !String(student.major).trim()) {
-      unverified.push("Student branch/major is missing");
-    } else if (
-      String(student.major).trim().toLowerCase() !==
-      String(job.required_major).trim().toLowerCase()
-    ) {
-      reasons.push("Required branch/major does not match");
-    }
-  }
-
-  // 4. Graduation year eligibility
-  if (job.min_grad_year != null || job.max_grad_year != null) {
-    const minYear =
-      job.min_grad_year == null ? null : Number(job.min_grad_year);
-
-    const maxYear =
-      job.max_grad_year == null ? null : Number(job.max_grad_year);
-
-    if (
-      (minYear !== null &&
-        (!Number.isInteger(minYear) || minYear < 1990 || minYear > 2100)) ||
-      (maxYear !== null &&
-        (!Number.isInteger(maxYear) || maxYear < 1990 || maxYear > 2100)) ||
-      (minYear !== null && maxYear !== null && minYear > maxYear)
-    ) {
-      unverified.push("Job graduation year requirements are invalid");
-    } else {
-      const graduationYear = Number(student.grad_year);
-
-      if (
-        student.grad_year == null ||
-        student.grad_year === "" ||
-        !Number.isInteger(graduationYear)
-      ) {
-        unverified.push(
-          "Student graduation year is missing or invalid"
-        );
-      } else {
-        if (minYear !== null && graduationYear < minYear) {
-          reasons.push("Graduation year is earlier than allowed");
-        }
-
-        if (maxYear !== null && graduationYear > maxYear) {
-          reasons.push("Graduation year is later than allowed");
-        }
-      }
-    }
-  }
-
-  let status = "eligible";
-
-  if (reasons.length > 0) {
-    status = "ineligible";
-  } else if (unverified.length > 0) {
-    status = "conditionally eligible";
-  }
-
-  return {
-    status,
-    eligible: status === "eligible",
-    reasons,
-    unverified,
-  };
-}
-
 // Reusable panel
 function Panel({ children, className = "" }) {
   return (
@@ -356,7 +227,11 @@ function getCriteriaRows(profile, job, result) {
       yearRow.status = "fail";
     }
 
-    if (result.unverified.includes("Job graduation year requirements are invalid")) {
+    if (
+      result.unverified.includes(
+        "Job graduation year requirements are invalid"
+      )
+    ) {
       yearRow.status = "pending";
     }
   }
@@ -374,12 +249,13 @@ function EligibilityChecker() {
   const [applications, setApplications] = useState([]);
   const [resumes, setResumes] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [eligibilityRows, setEligibilityRows] = useState([]);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch all required backend data
+  // Fetch backend data and check eligibility
   useEffect(() => {
     let isMounted = true;
 
@@ -407,8 +283,106 @@ function EligibilityChecker() {
         setResumes(resumesData);
         setProfile(profileData);
 
-        if (applicationsData.length > 0) {
-          setSelectedApplication(getApplicationId(applicationsData[0]));
+        // Get only active applications
+        const activeApplicationsData = applicationsData.filter(
+          (application) =>
+            ACTIVE_STATUSES.includes(
+              String(application.status || "").toLowerCase()
+            )
+        );
+
+        // Check each application's eligibility using backend API
+        const rows = await Promise.all(
+          activeApplicationsData.map(async (application) => {
+            const job = jobsData.find(
+              (item) =>
+                String(item.id) === String(application.job_id)
+            );
+
+            const fallbackResult = (reason) => ({
+              status: "conditionally eligible",
+              eligible: false,
+              reasons: [],
+              unverified: [reason],
+              skills: null,
+            });
+
+            // Check if job exists
+            if (!job) {
+              return {
+                application,
+                job: null,
+                result: fallbackResult(
+                  "Job information is unavailable"
+                ),
+              };
+            }
+
+            // Check if a resume is linked to this application
+            if (!application.resume_id) {
+              return {
+                application,
+                job,
+                result: fallbackResult(
+                  "No resume is linked to this application"
+                ),
+              };
+            }
+
+            try {
+              const data =
+                await eligibilityService.checkEligibility(
+                  application.job_id,
+                  application.resume_id
+                );
+
+              const eligibility = data?.eligibility;
+
+              return {
+                application,
+                job,
+                result: {
+                  status:
+                    eligibility?.status ||
+                    "conditionally eligible",
+
+                  eligible: eligibility?.eligible ?? false,
+
+                  reasons: Array.isArray(eligibility?.reasons)
+                    ? eligibility.reasons
+                    : [],
+
+                  unverified: Array.isArray(
+                    eligibility?.unverified_fields
+                  )
+                    ? eligibility.unverified_fields
+                    : [],
+
+                  skills: data?.skills || null,
+                },
+              };
+            } catch (err) {
+              return {
+                application,
+                job,
+                result: fallbackResult(
+                  err.message || "Eligibility check failed"
+                ),
+              };
+            }
+          })
+        );
+
+        if (!isMounted) return;
+
+        setEligibilityRows(rows);
+
+        if (activeApplicationsData.length > 0) {
+          setSelectedApplication(
+            getApplicationId(activeApplicationsData[0])
+          );
+        } else {
+          setSelectedApplication("");
         }
       } catch (err) {
         if (isMounted) {
@@ -438,21 +412,6 @@ function EligibilityChecker() {
       String(application.status || "").toLowerCase()
     )
   );
-
-  // Match each application with its actual job and eligibility result
-  const eligibilityRows = activeApplications.map((application) => {
-    const job = jobs.find(
-      (item) => String(item.id) === String(application.job_id)
-    );
-
-    const result = calculateEligibility(profile, job);
-
-    return {
-      application,
-      job,
-      result,
-    };
-  });
 
   // Selected application
   const selectedRow = eligibilityRows.find(
@@ -570,6 +529,7 @@ function EligibilityChecker() {
   };
 
   const hasProfile = Boolean(profile);
+
   const criteriaRows = selectedResult
     ? getCriteriaRows(profile, selectedJob, selectedResult)
     : [];
@@ -1305,11 +1265,10 @@ function EligibilityChecker() {
               Data accuracy notice:
             </strong>{" "}
             Jobs, applications, resumes and candidate profile information
-            are loaded from existing backend APIs. Eligibility results use
-            the same CGPA, degree, major and graduation-year rules as the
-            backend eligibility checker. Work authorization is displayed
-            separately and is not currently part of the backend eligibility
-            calculation.
+            are loaded from existing backend APIs. Eligibility results are
+            fetched from the backend eligibility checker. Work authorization
+            is displayed separately and is not currently part of the backend
+            eligibility calculation.
           </p>
         </div>
       </div>
@@ -1318,3 +1277,4 @@ function EligibilityChecker() {
 }
 
 export default EligibilityChecker;
+
