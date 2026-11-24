@@ -106,6 +106,9 @@ CREATE TABLE IF NOT EXISTS resumes (
     file_url VARCHAR(500),
     version VARCHAR(20),
     ats_score DECIMAL(5,2),
+    original_name VARCHAR(255),
+    storage_public_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_resumes_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
