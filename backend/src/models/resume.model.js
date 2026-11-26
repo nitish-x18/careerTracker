@@ -1,18 +1,28 @@
-import {db} from "../config/db.js";
+import { db } from "../config/db.js";
 
 const Resume = {
     async create({
         id,
         user_id,
         file_url,
+        original_name,
+        storage_public_id,
         version,
         ats_score
     }) {
         const [result] = await db.execute(
             `INSERT INTO resumes
-            (id, user_id, file_url, version, ats_score)
-            VALUES (?, ?, ?, ?, ?)`,
-            [id, user_id, file_url, version, ats_score]
+            (id, user_id, file_url, original_name, storage_public_id, version, ats_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id,
+                user_id,
+                file_url,
+                original_name,
+                storage_public_id,
+                version,
+                ats_score
+            ]
         );
 
         return result;
@@ -32,11 +42,22 @@ const Resume = {
         const [rows] = await db.execute(
             `SELECT * FROM resumes
              WHERE user_id = ?
-             ORDER BY id DESC`,
+             ORDER BY created_at DESC`,
             [user_id]
         );
 
         return rows;
+    },
+
+    async getNextVersion(user_id) {
+        const [rows] = await db.execute(
+            `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+             FROM resumes
+             WHERE user_id = ?`,
+            [user_id]
+        );
+
+        return rows[0].next_version;
     },
 
     async updateScore(id, ats_score) {
