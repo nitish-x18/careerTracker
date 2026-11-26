@@ -7,6 +7,7 @@ import userRoutes from "./routes/user.route.js";
 import userProfileRoutes from "./routes/userProfile.route.js";
 import userPreferenceRoutes from "./routes/userPreference.route.js";
 import applicationRoutes from "./routes/application.route.js";
+import resumeUploadRoutes from "./routes/resumeUpload.route.js";
 
 // Middleware
 import { notFoundMiddleware } from "./middlewares/notFound.middleware.js";
@@ -46,6 +47,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/profile", userProfileRoutes);
 app.use("/api/preferences", userPreferenceRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/resumes", resumeUploadRoutes);
 
 // 5. Handle unknown routes (must come after all routes)
 app.use(notFoundMiddleware);
