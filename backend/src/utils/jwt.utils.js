@@ -5,8 +5,13 @@ export const generateAccessToken = (payload) => {
         throw new Error('JWT_SECRET is not configured');
     }
 
+    const userId = payload.userId || payload.id;
+
     return jwt.sign(
-        payload,
+        {
+            userId,
+            email: payload.email,
+        },
         process.env.JWT_SECRET,
         {
             expiresIn: process.env.JWT_EXPIRES || '1d',
